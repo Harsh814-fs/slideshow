@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{{ screen_name }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+
+    #slideshow { width: 100vw; height: 100vh; position: relative; }
+
+    .slide {
+      position: absolute; inset: 0; opacity: 0;
+      transition: opacity 0.8s ease-in-out;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .slide.active { opacity: 1; z-index: 1; }
+    .slide img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+    /* Empty state */
+    #empty {
+      position: absolute; inset: 0; display: flex;
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px; color: #333;
+    }
+    #empty .icon { font-size: 4rem; }
+    #empty p { font-size: 1rem; font-family: sans-serif; }
+
+    /* ── Prayer times bar ────────────────────────────────────────────────── */
+    #prayer-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 20;
+      background: transparent;
+      padding: 0 60px 16px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      gap: 0;
+    }
+
+    .prayer-item {
+      flex: 1;
+      text-align: center;
+      padding: 0 10px;
+      border-right: 1px solid rgba(255,255,255,0.15);
+    }
+    .prayer-item:last-child { border-right: none; }
+
+    .p-label {
+      display: block;
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      font-size: clamp(0.52rem, 0.75vw, 0.68rem);
+      font-weight: 400;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.9);
+      text-shadow:
+        0 0 8px rgba(0,0,0,1),
+        0 0 16px rgba(0,0,0,1),
+        -1px -1px 4px rgba(0,0,0,1),
+        1px 1px 4px rgba(0,0,0,1);
+      margin-bottom: 3px;
+    }
+
+    .p-time {
+      display: block;
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      font-size: clamp(0.85rem, 1.4vw, 1.2rem);
+      font-weight: 300;
+      letter-spacing: 0.06em;
+      color: #ffffff;
+      text-shadow:
+        0 0 10px rgba(0,0,0,1),
+        0 0 20px rgba(0,0,0,1),
+        -1px -1px 5px rgba(0,0,0,1),
+        1px 1px 5px rgba(0,0,0,1);
+    }
+
+    /* Active prayer highlighted in gold */
+    .prayer-item.active .p-label { color: rgba(255,215,100,1); }
+    .prayer-item.active .p-time  { color: #ffd764; font-weight: 400; }
+
+    /* Offline badge */
+    #offline-badge {
+      position: fixed; top: 14px; right: 14px;
+      background: rgba(180,0,0,0.75); color: #fff;
+      font-family: sans-serif; font-size: 0.72rem;
+      padding: 4px 10px; border-radius: 4px;
+      display: none; z-index: 30; pointer-events: none;
+    }
+    #offline-badge.on { display: block; }
+
+    /* Screen name badge (fades out) */
+    #badge {
+      position: fixed; top: 14px; left: 14px;
+      background: rgba(0,0,0,0.55); color: #999;
+      font-family: sans-serif; font-size: 0.75rem;
+      padding: 4px 10px; border-radius: 4px;
+      opacity: 0; transition: opacity 0.5s; z-index: 30; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="badge">{{ screen_name }}</div>
+  <div id="offline-badge">⚡ offline — vis gemte slides</div>
+
+  <div id="slideshow">
+    <div id="empty">
+      <div class="icon">🖼️</div>
+      <p>Afventer slides…</p>
+    </div>
+  </div>
+
+  <!-- Prayer times bar -->
+  <div id="prayer-bar">
+    <div class="prayer-item" id="p-sabah">
+      <span class="p-label">Sabah</span>
+      <span class="p-time" id="t-sabah">—</span>
+    </div>
+    <div class="prayer-item" id="p-ogle">
+      <span class="p-label">Öğle</span>
+      <span class="p-time" id="t-ogle">—</span>
+    </div>
+    <div class="prayer-item" id="p-ikindi">
+      <span class="p-label">İkindi</span>
+      <span class="p-time" id="t-ikindi">—</span>
+    </div>
+    <div class="prayer-item" id="p-aksam">
+      <span class="p-label">Akşam</span>
+      <span class="p-time" id="t-aksam">—</span>
+    </div>
+    <div class="prayer-item" id="p-yatsi">
+      <span class="p-label">Yatsı</span>
+      <span class="p-time" id="t-yatsi">—</span>
+    </div>
+  </div>
+
+<script>
+  const SCREEN      = {{ screen_slug | tojson }};
+  const STORAGE_KEY = `slides_${SCREEN}`;
+  const PT_KEY      = `prayer_${SCREEN}`;
+
+  let slides     = [];
+  let currentIdx = 0;
+  let timer      = null;
+  let slideEls   = {};
+  let isOffline  = false;
+
+  // ── Service Worker ────────────────────────────────────────────────────────
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/service-worker.js', { scope: '/' })
+      .catch(e => console.warn('SW:', e));
+  }
+
+  // ── Offline detection ─────────────────────────────────────────────────────
+  window.addEventListener('offline', () => { isOffline = true;  document.getElementById('offline-badge').classList.add('on'); });
+  window.addEventListener('online',  () => { isOffline = false; document.getElementById('offline-badge').classList.remove('on'); connect(); });
+
+  // ── localStorage helpers ──────────────────────────────────────────────────
+  function saveSlides(arr)  { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); } catch(e){} }
+  function loadSlides()     { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e){ return []; } }
+  function savePrayer(obj)  { try { localStorage.setItem(PT_KEY, JSON.stringify(obj)); } catch(e){} }
+  function loadPrayer()     { try { return JSON.parse(localStorage.getItem(PT_KEY) || 'null'); } catch(e){ return null; } }
+
+  function cacheImage(url) {
+    if (navigator.serviceWorker.controller)
+      navigator.serviceWorker.controller.postMessage({ type: 'CACHE_IMAGE', url });
+  }
+
+  // ── Prayer times ──────────────────────────────────────────────────────────
+  const PRAYER_ORDER = [
+    { key: 'sabah',  id: 'p-sabah',  tid: 't-sabah'  },
+    { key: 'ogle',   id: 'p-ogle',   tid: 't-ogle'   },
+    { key: 'ikindi', id: 'p-ikindi', tid: 't-ikindi' },
+    { key: 'aksam',  id: 'p-aksam',  tid: 't-aksam'  },
+    { key: 'yatsi',  id: 'p-yatsi',  tid: 't-yatsi'  },
+  ];
+
+  function renderPrayer(times) {
+    if (!times) return;
+    PRAYER_ORDER.forEach(p => {
+      const el = document.getElementById(p.tid);
+      if (el) el.textContent = times[p.key] || '—';
+    });
+    highlightActivePrayer(times);
+  }
+
+  function highlightActivePrayer(times) {
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+    function toMinutes(str) {
+      if (!str || str === '—') return null;
+      const [h, m] = str.split(':').map(Number);
+      return h * 60 + m;
+    }
+
+    const minutes = PRAYER_ORDER.map(p => toMinutes(times[p.key]));
+
+    // Find the last prayer that has already started
+    let activeIdx = -1;
+    for (let i = 0; i < minutes.length; i++) {
+      if (minutes[i] !== null && nowMinutes >= minutes[i]) activeIdx = i;
+    }
+
+    PRAYER_ORDER.forEach((p, i) => {
+      const el = document.getElementById(p.id);
+      if (el) el.classList.toggle('active', i === activeIdx);
+    });
+  }
+
+  async function fetchPrayer() {
+    try {
+      const res = await fetch('/api/prayer/today');
+      const data = await res.json();
+      if (data.success && data.times) {
+        savePrayer(data.times);
+        renderPrayer(data.times);
+      }
+    } catch(e) {
+      // Use cached if network fails
+      renderPrayer(loadPrayer());
+    }
+  }
+
+  // ── SSE ───────────────────────────────────────────────────────────────────
+  let es = null;
+
+  function connect() {
+    if (es) { es.close(); es = null; }
+    es = new EventSource(`/api/screens/${SCREEN}/events`);
+
+    es.addEventListener('init', e => {
+      slides = JSON.parse(e.data);
+      saveSlides(slides);
+      slides.forEach(s => cacheImage(`/static/uploads/${s.filename}`));
+      rebuildDOM();
+      slides.length ? showSlide(0) : showEmpty(true);
+    });
+
+    es.addEventListener('slide_added', e => {
+      const s = JSON.parse(e.data);
+      if (!slides.find(x => x.id === s.id)) {
+        slides.push(s);
+        saveSlides(slides);
+        cacheImage(`/static/uploads/${s.filename}`);
+        addSlideEl(s);
+        if (slides.length === 1) showSlide(0);
+        showEmpty(false);
+      }
+    });
+
+    es.addEventListener('slide_removed', e => {
+      const {id} = JSON.parse(e.data);
+      slides = slides.filter(s => s.id !== id);
+      saveSlides(slides);
+      slideEls[id]?.remove();
+      delete slideEls[id];
+      if (!slides.length) { clearTimer(); showEmpty(true); return; }
+      if (currentIdx >= slides.length) currentIdx = 0;
+      showSlide(currentIdx);
+    });
+
+    es.addEventListener('slide_updated', e => {
+      const s = JSON.parse(e.data);
+      const i = slides.findIndex(x => x.id === s.id);
+      if (i !== -1) {
+        slides[i] = s; saveSlides(slides);
+        if (i === currentIdx) { clearTimer(); scheduleNext(s.duration); }
+      }
+    });
+
+    es.addEventListener('reordered', e => {
+      slides = JSON.parse(e.data).slides;
+      saveSlides(slides);
+      rebuildDOM();
+      currentIdx = 0;
+      slides.length ? showSlide(0) : showEmpty(true);
+    });
+
+    es.addEventListener('deleted', () => {
+      clearTimer();
+      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#333;font-family:sans-serif;">Bu ekran silindi.</div>';
+    });
+
+    es.onerror = () => {
+      es.close(); es = null;
+      isOffline = true;
+      document.getElementById('offline-badge').classList.add('on');
+      setTimeout(() => { connect(); }, 5000);
+    };
+  }
+
+  // ── DOM helpers ───────────────────────────────────────────────────────────
+  function rebuildDOM() {
+    Object.values(slideEls).forEach(el => el.remove());
+    slideEls = {};
+    slides.forEach(s => addSlideEl(s));
+  }
+
+  function addSlideEl(s) {
+    const div = document.createElement('div');
+    div.className = 'slide';
+    div.id = `slide-${s.id}`;
+    div.innerHTML = `<img src="/static/uploads/${s.filename}" draggable="false"/>`;
+    document.getElementById('slideshow').appendChild(div);
+    slideEls[s.id] = div;
+  }
+
+  function showEmpty(yes) {
+    document.getElementById('empty').style.display = yes ? 'flex' : 'none';
+  }
+
+  // ── Slideshow ─────────────────────────────────────────────────────────────
+  function showSlide(idx) {
+    if (!slides.length) return;
+    clearTimer();
+    Object.values(slideEls).forEach(el => el.classList.remove('active'));
+    const slide = slides[idx];
+    const el    = slideEls[slide?.id];
+    if (!el) return;
+    el.classList.add('active');
+    showEmpty(false);
+    scheduleNext(slide.duration);
+  }
+
+  function scheduleNext(dur) {
+    clearTimer();
+    timer = setTimeout(() => {
+      currentIdx = (currentIdx + 1) % slides.length;
+      showSlide(currentIdx);
+    }, dur * 1000);
+  }
+
+  function clearTimer() {
+    if (timer) { clearTimeout(timer); timer = null; }
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  // Show cached slides immediately (works offline)
+  const cached = loadSlides();
+  if (cached.length) {
+    slides = cached;
+    rebuildDOM();
+    showSlide(0);
+    showEmpty(false);
+  }
+
+  // Show cached prayer times immediately
+  renderPrayer(loadPrayer());
+
+  // Connect live
+  connect();
+
+  // Fetch fresh prayer times
+  fetchPrayer();
+
+  // Re-highlight active prayer every minute (prayer changes throughout day)
+  setInterval(() => {
+    const pt = loadPrayer();
+    if (pt) highlightActivePrayer(pt);
+  }, 60000);
+
+  // Refresh prayer times every hour (they don't change within a day, but just in case)
+  setInterval(fetchPrayer, 3600000);
+
+  // Badge
+  const badge = document.getElementById('badge');
+  badge.style.opacity = '1';
+  setTimeout(() => badge.style.opacity = '0', 3000);
+</script>
+</body>
+</html>

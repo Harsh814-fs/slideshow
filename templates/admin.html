@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Slideshow Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f0f13; color: #e2e2e2; min-height: 100vh; display: flex; flex-direction: column; }
+
+    header { background: #1a1a24; border-bottom: 2px solid #3a3a5c; padding: 14px 24px; display: flex; align-items: center; gap: 16px; }
+    header .logo { font-size: 1.2rem; font-weight: 700; color: #a78bfa; }
+    header .sub  { font-size: 0.78rem; color: #555; margin-top: 2px; }
+
+    .tabs { display: flex; background: #15151f; border-bottom: 1px solid #2a2a40; padding: 0 24px; }
+    .tab  { padding: 11px 20px; font-size: 0.82rem; color: #666; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+    .tab:hover { color: #aaa; }
+    .tab.active { color: #a78bfa; border-bottom-color: #a78bfa; }
+
+    /* ── PUSH VIEW ── */
+    .push-view { display: none; flex: 1; flex-direction: row; overflow: hidden; }
+    .push-view.active { display: flex; }
+
+    .lib-panel {
+      width: 400px; flex-shrink: 0; background: #15151f;
+      border-right: 1px solid #2a2a40; display: flex; flex-direction: column; overflow: hidden;
+    }
+    .panel-head { padding: 14px 16px; border-bottom: 1px solid #2a2a40; }
+    .panel-head h3 { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #a78bfa; margin-bottom: 10px; }
+
+    .drop-zone { border: 2px dashed #3a3a5c; border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; transition: all 0.2s; background: #1a1a28; }
+    .drop-zone:hover, .drop-zone.over { border-color: #a78bfa; background: #22223a; }
+    .drop-zone p { font-size: 0.8rem; color: #888; }
+    .drop-zone strong { color: #ccc; }
+    #libFileInput { display: none; }
+
+    .upload-status { font-size: 0.78rem; padding: 5px 10px; border-radius: 5px; display: none; margin-top: 8px; }
+    .upload-status.error   { background: #2d1a1a; color: #f87171; display: block; }
+    .upload-status.success { background: #1a2d1a; color: #6ee76e; display: block; }
+    .upload-status.loading { background: #1e1e30; color: #a78bfa; display: block; }
+
+    .lib-grid-wrap { flex: 1; overflow-y: auto; padding: 12px; }
+    .lib-empty { color: #444; text-align: center; padding: 30px; font-size: 0.82rem; }
+    .lib-grid  { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+
+    .lib-card { border-radius: 8px; overflow: hidden; cursor: pointer; position: relative; border: 2px solid transparent; transition: all 0.15s; background: #1a1a28; }
+    .lib-card:hover { border-color: #4a4a70; }
+    .lib-card.selected { border-color: #a78bfa; }
+    .lib-card img { width: 100%; height: 70px; object-fit: cover; display: block; }
+    .lib-card .lc-name { font-size: 0.68rem; color: #888; padding: 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lib-card .lc-del { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.7); color: #f87171; border: none; border-radius: 4px; padding: 2px 5px; font-size: 0.7rem; cursor: pointer; display: none; }
+    .lib-card:hover .lc-del { display: block; }
+    .lib-card .lc-check { position: absolute; top: 4px; left: 4px; width: 16px; height: 16px; border-radius: 50%; background: #a78bfa; display: none; align-items: center; justify-content: center; font-size: 0.65rem; color: #fff; }
+    .lib-card.selected .lc-check { display: flex; }
+
+    .dest-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .preview-bar { background: #1a1a28; border-bottom: 1px solid #2a2a40; padding: 12px 20px; display: flex; align-items: center; gap: 14px; }
+    .preview-bar .preview-thumb { width: 80px; height: 45px; border-radius: 6px; overflow: hidden; background: #111; flex-shrink: 0; }
+    .preview-bar .preview-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .preview-bar .preview-info { flex: 1; }
+    .preview-bar .preview-name { font-size: 0.85rem; color: #ddd; }
+    .preview-bar .preview-hint { font-size: 0.75rem; color: #555; margin-top: 2px; }
+    .preview-bar .dur-row { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #888; }
+    .preview-bar .dur-row input { width: 58px; background: #1e1e2e; border: 1px solid #2a2a40; color: #a78bfa; font-size: 0.9rem; font-weight: 600; border-radius: 6px; padding: 5px 8px; outline: none; text-align: center; }
+    .no-selection-bar { background: #1a1a28; border-bottom: 1px solid #2a2a40; padding: 16px 20px; color: #444; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; }
+
+    .dest-scroll { flex: 1; overflow-y: auto; padding: 16px 20px; }
+    .dest-section-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #a78bfa; margin-bottom: 10px; margin-top: 16px; }
+    .dest-section-title:first-child { margin-top: 0; }
+
+    .dest-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid #2a2a40; background: #1a1a28; margin-bottom: 6px; cursor: pointer; transition: all 0.15s; }
+    .dest-item:hover { border-color: #4a4a70; background: #1e1e2e; }
+    .dest-item.checked { border-color: #6d28d9; background: #1e1830; }
+
+    .dest-checkbox { width: 18px; height: 18px; border-radius: 4px; border: 2px solid #3a3a5c; background: transparent; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; font-size: 0.7rem; color: #fff; }
+    .dest-item.checked .dest-checkbox { background: #6d28d9; border-color: #6d28d9; }
+
+    .dest-label { flex: 1; }
+    .dest-label .dl-name { font-size: 0.85rem; color: #ccc; }
+    .dest-label .dl-sub  { font-size: 0.7rem; color: #555; margin-top: 1px; }
+
+    .push-bar { background: #1a1a24; border-top: 1px solid #2a2a40; padding: 14px 20px; display: flex; align-items: center; gap: 14px; }
+    .push-btn { background: linear-gradient(135deg, #6d28d9, #4f46e5); color: #fff; border: none; border-radius: 8px; padding: 10px 28px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px; }
+    .push-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(109,40,217,0.4); }
+    .push-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .push-status { font-size: 0.82rem; padding: 6px 12px; border-radius: 6px; display: none; }
+    .push-status.error   { background: #2d1a1a; color: #f87171; display: block; }
+    .push-status.success { background: #1a2d1a; color: #6ee76e; display: block; }
+    .sel-summary { font-size: 0.78rem; color: #555; }
+
+    /* ── SCREENS VIEW ── */
+    .screens-view { display: none; flex: 1; overflow: hidden; }
+    .screens-view.active { display: grid; grid-template-columns: 260px 1fr; }
+
+    .sm-sidebar { background: #15151f; border-right: 1px solid #2a2a40; display: flex; flex-direction: column; overflow-y: auto; }
+    .sm-section { padding: 14px; border-bottom: 1px solid #2a2a40; }
+    .sm-section h3 { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #a78bfa; margin-bottom: 10px; }
+    .input-row { display: flex; gap: 6px; }
+    .input-row input { flex: 1; background: #1e1e2e; border: 1px solid #2a2a40; color: #e2e2e2; border-radius: 6px; padding: 7px 10px; font-size: 0.82rem; outline: none; }
+    .input-row input:focus { border-color: #6d28d9; }
+    .input-row input::placeholder { color: #555; }
+    .btn-add { background: #6d28d9; color: #fff; border: none; border-radius: 6px; padding: 7px 11px; cursor: pointer; font-size: 0.82rem; white-space: nowrap; transition: background 0.2s; }
+    .btn-add:hover { background: #7c3aed; }
+    .err-msg { font-size: 0.72rem; color: #f87171; margin-top: 5px; min-height: 14px; }
+
+    .screen-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 7px; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; margin-bottom: 3px; }
+    .screen-item:hover { background: #1e1e2e; border-color: #2a2a40; }
+    .screen-item.active { background: #22213a; border-color: #6d28d9; }
+    .screen-item .dot { width: 7px; height: 7px; border-radius: 50%; background: #3a3a5c; flex-shrink: 0; }
+    .screen-item.active .dot { background: #a78bfa; }
+    .screen-item .sname { flex: 1; font-size: 0.83rem; color: #ccc; }
+    .screen-item .scount { font-size: 0.68rem; color: #555; }
+    .icon-btn { background: none; border: none; color: #555; cursor: pointer; font-size: 0.78rem; padding: 2px 5px; border-radius: 4px; transition: all 0.15s; }
+    .icon-btn:hover { background: #7f1d1d; color: #fca5a5; }
+    .no-items { color: #444; font-size: 0.8rem; text-align: center; padding: 14px 8px; }
+    .predefined-badge { font-size: 0.6rem; background: #2a1f5e; color: #c4b5fd; padding: 1px 5px; border-radius: 4px; }
+
+    .sm-main { display: flex; flex-direction: column; overflow: hidden; }
+    .sm-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: #444; flex-direction: column; gap: 8px; }
+    .sm-empty .icon { font-size: 2.5rem; }
+    .sm-editor { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+    .sm-editor.visible { display: flex; }
+    .sm-editor-head { background: #1a1a24; border-bottom: 1px solid #2a2a40; padding: 12px 18px; }
+    .sm-editor-head .etitle { font-size: 0.95rem; font-weight: 600; color: #a78bfa; }
+    .sm-editor-head .eurl { font-size: 0.72rem; color: #555; margin-top: 3px; }
+    .sm-editor-head .eurl a { color: #6d88d9; text-decoration: none; }
+
+    .slide-list-wrap { flex: 1; overflow-y: auto; padding: 14px 18px; }
+    .slide-list-empty { color: #444; text-align: center; padding: 30px; font-size: 0.82rem; }
+    .slide-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .slide-card { background: #1a1a28; border: 1px solid #2a2a40; border-radius: 9px; display: flex; align-items: center; gap: 10px; padding: 9px 12px; }
+    .slide-card:hover { border-color: #3a3a5c; }
+    .slide-card.drag-over { border-color: #a78bfa; }
+    .drag-handle { cursor: grab; color: #3a3a5c; font-size: 1rem; user-select: none; }
+    .slide-num { width: 22px; height: 22px; border-radius: 50%; background: #2a2a40; display: flex; align-items: center; justify-content: center; font-size: 0.68rem; color: #777; flex-shrink: 0; }
+    .slide-thumb { width: 72px; height: 40px; border-radius: 5px; overflow: hidden; background: #111; flex-shrink: 0; }
+    .slide-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .slide-info { flex: 1; min-width: 0; }
+    .slide-info .fname { font-size: 0.8rem; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .slide-info .fmeta { font-size: 0.68rem; color: #555; margin-top: 2px; }
+    .dur-edit { display: flex; align-items: center; gap: 4px; background: #11111a; border: 1px solid #2a2a40; border-radius: 6px; padding: 3px 7px; }
+    .dur-edit label { font-size: 0.68rem; color: #555; }
+    .dur-edit input { width: 42px; background: transparent; border: none; color: #a78bfa; font-size: 0.82rem; font-weight: 600; outline: none; text-align: right; }
+    .dur-edit span { font-size: 0.68rem; color: #555; }
+    .dur-save { background: none; border: none; color: #6d28d9; cursor: pointer; font-size: 0.82rem; padding: 0 2px; }
+    .dur-save:hover { color: #a78bfa; }
+    .slide-actions button { background: #1e1e2e; border: 1px solid #2a2a40; color: #888; border-radius: 5px; padding: 4px 7px; font-size: 0.72rem; cursor: pointer; transition: all 0.15s; }
+    .slide-actions .rm:hover { background: #7f1d1d; border-color: #991b1b; color: #fca5a5; }
+
+    ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #3a3a5c; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">📺 Slideshow Admin</div>
+    <div class="sub">Push media to mosque screens</div>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('push')">📤 Push Media</div>
+  <div class="tab" onclick="switchTab('screens')">🖥️ Manage Screens</div>
+</div>
+
+<!-- ── PUSH MEDIA ── -->
+<div class="push-view active" id="tab-push">
+
+  <div class="lib-panel">
+    <div class="panel-head">
+      <h3>Media Library</h3>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('libFileInput').click()">
+        <p><strong>Click or drag image here</strong><br>JPG, PNG, GIF, WEBP</p>
+      </div>
+      <input type="file" id="libFileInput" accept=".jpg,.jpeg,.png,.gif,.webp" multiple/>
+      <div class="upload-status" id="uploadStatus"></div>
+    </div>
+    <div class="lib-grid-wrap">
+      <div class="lib-empty" id="libEmpty">No images yet. Upload above.</div>
+      <div class="lib-grid" id="libGrid"></div>
+    </div>
+  </div>
+
+  <div class="dest-panel">
+    <div class="no-selection-bar" id="noSelBar">👈 Select an image from the library to get started</div>
+    <div class="preview-bar" id="previewBar" style="display:none">
+      <div class="preview-thumb"><img id="previewImg" src="" alt=""/></div>
+      <div class="preview-info">
+        <div class="preview-name" id="previewName"></div>
+        <div class="preview-hint">Select screens below, then click Push</div>
+      </div>
+      <div class="dur-row">
+        Duration: <input type="number" id="pushDuration" value="5" min="0.5" step="0.5"/> sec
+      </div>
+    </div>
+
+    <div class="dest-scroll">
+      <div class="dest-section-title">Screens</div>
+      <div id="destScreens">
+        <div class="no-items" id="noDestScreens" style="display:none">No screens available.</div>
+      </div>
+    </div>
+
+    <div class="push-bar">
+      <button class="push-btn" id="pushBtn" onclick="pushMedia()" disabled>⚡ Push to Selected</button>
+      <div class="push-status" id="pushStatus"></div>
+      <div class="sel-summary" id="selSummary"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MANAGE SCREENS ── -->
+<div class="screens-view" id="tab-screens">
+  <div class="sm-sidebar">
+    <div class="sm-section">
+      <h3>All Screens</h3>
+      <div class="input-row">
+        <input type="text" id="newScreenInput" placeholder="add new screen…" maxlength="80" onkeydown="if(event.key==='Enter') createScreen()"/>
+        <button class="btn-add" onclick="createScreen()">+ Add</button>
+      </div>
+      <div class="err-msg" id="screenErr"></div>
+    </div>
+    <div style="padding:8px 10px 4px; flex:1; overflow-y:auto">
+      <div id="noScreensSM" class="no-items" style="display:none">No screens.</div>
+      <div id="screenListSM"></div>
+    </div>
+  </div>
+
+  <div class="sm-main">
+    <div class="sm-empty" id="smEmpty">
+      <div class="icon">🕌</div>
+      <p style="font-size:0.85rem">Select a screen to manage its slides</p>
+    </div>
+    <div class="sm-editor" id="smEditor">
+      <div class="sm-editor-head">
+        <div class="etitle" id="smEditorTitle"></div>
+        <div class="eurl"><a id="smEditorUrl" href="#" target="_blank"></a></div>
+      </div>
+      <div class="slide-list-wrap">
+        <div class="slide-list-empty" id="smSlideEmpty">No slides. Push images from the "Push Media" tab.</div>
+        <div class="slide-list" id="smSlideList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Boot data from Flask ───────────────────────────────────────────────────
+  let allScreens  = {{ screens | tojson }};   // [{name, slug}, ...]
+  let library     = {{ library | tojson }};   // [{id, filename, original_name, ...}]
+
+  let selectedMediaId = null;
+  let checkedSlugs    = new Set();
+  let currentSlug     = null;
+  let currentSlides   = [];
+  let dragSrcId       = null;
+  let smSSE           = null;
+
+  const PREDEFINED_SLUGS = new Set([
+    'aabenraa-camii','aarhus-selimiye-camii','albertslund-alaaddin-camii',
+    'avedore-haci-bayram-camii','ballerup-fatih-camii',
+    'brabrand-kvinde-afd','brabrand-ulu-camii'
+  ]);
+
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', ['push','screens'][i] === tab));
+    document.getElementById('tab-push').classList.toggle('active', tab === 'push');
+    document.getElementById('tab-screens').classList.toggle('active', tab === 'screens');
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  library.forEach(item => addToLibGrid(item));
+  updateLibEmpty();
+  allScreens.forEach(s => {
+    addDestScreen(s);
+    addScreenToSM(s);
+  });
+  if (!allScreens.length) document.getElementById('noDestScreens').style.display = 'block';
+
+  // ── Library ────────────────────────────────────────────────────────────────
+  const dz = document.getElementById('dropZone');
+  dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); uploadToLibrary(e.dataTransfer.files); });
+  document.getElementById('libFileInput').addEventListener('change', function() { uploadToLibrary(this.files); this.value=''; });
+
+  async function uploadToLibrary(files) {
+    const status = document.getElementById('uploadStatus');
+    for (const file of files) {
+      setStatus(status, 'loading', `Uploading ${file.name}…`);
+      const fd = new FormData();
+      fd.append('file', file);
+      try {
+        const res  = await fetch('/api/library/upload', { method:'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) { setStatus(status, 'error', data.error); continue; }
+        library.push(data);
+        addToLibGrid(data);
+        updateLibEmpty();
+        setStatus(status, 'success', `✓ ${file.name} uploaded`);
+      } catch { setStatus(status, 'error', 'Network error.'); }
+    }
+  }
+
+  function addToLibGrid(item) {
+    const grid = document.getElementById('libGrid');
+    const card = document.createElement('div');
+    card.className = 'lib-card';
+    card.id = `lib-${item.id}`;
+    card.innerHTML = `
+      <div class="lc-check">✓</div>
+      <img src="/static/uploads/${item.filename}" loading="lazy"/>
+      <div class="lc-name" title="${item.original_name}">${item.original_name}</div>
+      <button class="lc-del" onclick="deleteLibItem('${item.id}',event)" title="Remove">✕</button>
+    `;
+    card.addEventListener('click', () => selectMedia(item));
+    grid.appendChild(card);
+  }
+
+  function selectMedia(item) {
+    document.querySelectorAll('.lib-card').forEach(c => c.classList.remove('selected'));
+    document.getElementById(`lib-${item.id}`)?.classList.add('selected');
+    selectedMediaId = item.id;
+    document.getElementById('noSelBar').style.display   = 'none';
+    document.getElementById('previewBar').style.display = 'flex';
+    document.getElementById('previewImg').src           = `/static/uploads/${item.filename}`;
+    document.getElementById('previewName').textContent  = item.original_name;
+    updatePushBtn();
+  }
+
+  async function deleteLibItem(id, e) {
+    e.stopPropagation();
+    await fetch(`/api/library/${id}`, { method:'DELETE' });
+    library = library.filter(i => i.id !== id);
+    document.getElementById(`lib-${id}`)?.remove();
+    if (selectedMediaId === id) {
+      selectedMediaId = null;
+      document.getElementById('noSelBar').style.display   = 'flex';
+      document.getElementById('previewBar').style.display = 'none';
+      updatePushBtn();
+    }
+    updateLibEmpty();
+  }
+
+  function updateLibEmpty() {
+    document.getElementById('libEmpty').style.display = library.length ? 'none' : 'block';
+  }
+
+  // ── Destinations ───────────────────────────────────────────────────────────
+  function addDestScreen(screen) {
+    const wrap = document.getElementById('destScreens');
+    const div  = document.createElement('div');
+    div.className = 'dest-item';
+    div.id = `dest-${screen.slug}`;
+    div.innerHTML = `
+      <div class="dest-checkbox" id="dchk-${screen.slug}"></div>
+      <div class="dest-label">
+        <div class="dl-name">${screen.name}</div>
+        <div class="dl-sub">${location.origin}/${screen.slug}</div>
+      </div>
+    `;
+    div.addEventListener('click', () => toggleDest(screen.slug));
+    wrap.appendChild(div);
+  }
+
+  function toggleDest(slug) {
+    if (checkedSlugs.has(slug)) {
+      checkedSlugs.delete(slug);
+      document.getElementById(`dest-${slug}`)?.classList.remove('checked');
+      document.getElementById(`dchk-${slug}`).textContent = '';
+    } else {
+      checkedSlugs.add(slug);
+      document.getElementById(`dest-${slug}`)?.classList.add('checked');
+      document.getElementById(`dchk-${slug}`).textContent = '✓';
+    }
+    updatePushBtn();
+  }
+
+  function updatePushBtn() {
+    const ok = !!selectedMediaId && checkedSlugs.size > 0;
+    document.getElementById('pushBtn').disabled = !ok;
+    document.getElementById('selSummary').textContent = checkedSlugs.size
+      ? `${checkedSlugs.size} screen${checkedSlugs.size>1?'s':''} selected`
+      : '';
+  }
+
+  // ── Push ───────────────────────────────────────────────────────────────────
+  async function pushMedia() {
+    const item = library.find(i => i.id === selectedMediaId);
+    if (!item) return;
+    const duration = parseFloat(document.getElementById('pushDuration').value) || 5;
+    const status   = document.getElementById('pushStatus');
+    const btn      = document.getElementById('pushBtn');
+    btn.disabled = true;
+    setStatus(status, 'loading', 'Pushing…');
+    try {
+      const res  = await fetch('/api/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename:      item.filename,
+          original_name: item.original_name,
+          width:         item.width,
+          height:        item.height,
+          duration,
+          screens: [...checkedSlugs],
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStatus(status, 'error', data.error);
+      } else {
+        setStatus(status, 'success', `✅ ${data.message}`);
+        [...checkedSlugs].forEach(s => toggleDest(s));
+      }
+    } catch { setStatus(status, 'error', 'Network error.'); }
+    btn.disabled = false;
+    updatePushBtn();
+  }
+
+  // ── Screens manager ────────────────────────────────────────────────────────
+  async function createScreen() {
+    const input = document.getElementById('newScreenInput');
+    const err   = document.getElementById('screenErr');
+    const name  = input.value.trim();
+    if (!name) { err.textContent = 'Enter a name.'; return; }
+    err.textContent = '';
+    const res  = await fetch('/api/screens', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.error; return; }
+    input.value = '';
+    allScreens.push(data);
+    addDestScreen(data);
+    addScreenToSM(data);
+    document.getElementById('noDestScreens').style.display = 'none';
+  }
+
+  function addScreenToSM(screen) {
+    const list  = document.getElementById('screenListSM');
+    const isPre = PREDEFINED_SLUGS.has(screen.slug);
+    const div   = document.createElement('div');
+    div.className = 'screen-item';
+    div.id = `sm-${screen.slug}`;
+    div.innerHTML = `
+      <div class="dot"></div>
+      <div class="sname" title="${screen.slug}">${screen.name}</div>
+      <div class="scount" id="smcnt-${screen.slug}">0 slides</div>
+      ${isPre ? '<span class="predefined-badge">seeded</span>' : `<button class="icon-btn" onclick="deleteScreen('${screen.slug}',event)" title="Delete">✕</button>`}
+    `;
+    div.addEventListener('click', () => selectSMScreen(screen));
+    list.appendChild(div);
+  }
+
+  async function deleteScreen(slug, e) {
+    e.stopPropagation();
+    if (!confirm(`Delete screen "${slug}"?`)) return;
+    await fetch(`/api/screens/${slug}`, { method:'DELETE' });
+    document.getElementById(`sm-${slug}`)?.remove();
+    document.getElementById(`dest-${slug}`)?.remove();
+    allScreens = allScreens.filter(s => s.slug !== slug);
+    checkedSlugs.delete(slug);
+    if (currentSlug === slug) { currentSlug = null; showSMEditor(false); }
+    updatePushBtn();
+  }
+
+  function selectSMScreen(screen) {
+    document.querySelectorAll('.screen-item').forEach(el => el.classList.remove('active'));
+    document.getElementById(`sm-${screen.slug}`)?.classList.add('active');
+    currentSlug   = screen.slug;
+    currentSlides = [];
+    showSMEditor(true);
+    document.getElementById('smEditorTitle').textContent = screen.name;
+    const url = `${location.origin}/${screen.slug}`;
+    const a   = document.getElementById('smEditorUrl');
+    a.href = url; a.textContent = url;
+    connectSMSSE(screen.slug);
+  }
+
+  function showSMEditor(v) {
+    document.getElementById('smEmpty').style.display = v ? 'none' : 'flex';
+    document.getElementById('smEditor').classList.toggle('visible', v);
+  }
+
+  // ── SSE for slide editor ───────────────────────────────────────────────────
+  function connectSMSSE(slug) {
+    if (smSSE) smSSE.close();
+    smSSE = new EventSource(`/api/screens/${slug}/events`);
+    smSSE.addEventListener('init', e => {
+      currentSlides = JSON.parse(e.data); renderSMSlides(); updateSMCount(slug);
+    });
+    smSSE.addEventListener('slide_added', e => {
+      const s = JSON.parse(e.data);
+      if (!currentSlides.find(x => x.id === s.id)) { currentSlides.push(s); renderSMSlides(); updateSMCount(slug); }
+    });
+    smSSE.addEventListener('slide_removed', e => {
+      const {id} = JSON.parse(e.data);
+      currentSlides = currentSlides.filter(s => s.id !== id); renderSMSlides(); updateSMCount(slug);
+    });
+    smSSE.addEventListener('slide_updated', e => {
+      const s = JSON.parse(e.data);
+      const i = currentSlides.findIndex(x => x.id === s.id);
+      if (i !== -1) { currentSlides[i] = s; renderSMSlides(); }
+    });
+    smSSE.addEventListener('reordered', e => {
+      currentSlides = JSON.parse(e.data).slides; renderSMSlides();
+    });
+  }
+
+  function updateSMCount(slug) {
+    const el = document.getElementById(`smcnt-${slug}`);
+    if (el) el.textContent = `${currentSlides.length} slide${currentSlides.length!==1?'s':''}`;
+  }
+
+  function renderSMSlides() {
+    const list  = document.getElementById('smSlideList');
+    const empty = document.getElementById('smSlideEmpty');
+    empty.style.display = currentSlides.length ? 'none' : 'block';
+    list.innerHTML = '';
+    currentSlides.forEach((s, idx) => {
+      const card = document.createElement('div');
+      card.className  = 'slide-card';
+      card.draggable  = true;
+      card.dataset.id = s.id;
+      card.innerHTML  = `
+        <span class="drag-handle">⠿</span>
+        <div class="slide-num">${idx+1}</div>
+        <div class="slide-thumb"><img src="/static/uploads/${s.filename}" loading="lazy"/></div>
+        <div class="slide-info">
+          <div class="fname" title="${s.original_name}">${s.original_name}</div>
+          <div class="fmeta">${s.width}×${s.height}</div>
+        </div>
+        <div class="dur-edit">
+          <label>dur</label>
+          <input type="number" min="0.1" step="0.5" value="${s.duration}" id="smdur_${s.id}"/>
+          <span>s</span>
+          <button class="dur-save" onclick="saveSMDuration('${s.id}')" title="Save">✓</button>
+        </div>
+        <div class="slide-actions">
+          <button class="rm" onclick="removeSMSlide('${s.id}')" title="Remove">✕</button>
+        </div>
+      `;
+      card.addEventListener('dragstart', () => { dragSrcId = s.id; card.style.opacity='0.5'; });
+      card.addEventListener('dragend',   () => { dragSrcId = null; card.style.opacity='1'; list.querySelectorAll('.slide-card').forEach(c=>c.classList.remove('drag-over')); });
+      card.addEventListener('dragover',  e => { e.preventDefault(); card.classList.add('drag-over'); });
+      card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+      card.addEventListener('drop', async e => {
+        e.preventDefault(); card.classList.remove('drag-over');
+        if (!dragSrcId || dragSrcId === s.id) return;
+        const si = currentSlides.findIndex(x=>x.id===dragSrcId), di = currentSlides.findIndex(x=>x.id===s.id);
+        const [moved] = currentSlides.splice(si,1); currentSlides.splice(di,0,moved);
+        await fetch(`/api/screens/${currentSlug}/reorder`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({order: currentSlides.map(x=>x.id)}) });
+      });
+      list.appendChild(card);
+    });
+  }
+
+  async function removeSMSlide(id) {
+    if (!currentSlug) return;
+    await fetch(`/api/screens/${currentSlug}/slides/${id}`, { method:'DELETE' });
+  }
+
+  async function saveSMDuration(id) {
+    if (!currentSlug) return;
+    const val = parseFloat(document.getElementById(`smdur_${id}`)?.value);
+    if (isNaN(val) || val <= 0) { alert('Duration must be a positive number.'); return; }
+    await fetch(`/api/screens/${currentSlug}/slides/${id}/duration`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({duration: val}) });
+  }
+
+  function setStatus(el, type, msg) {
+    el.className = `upload-status ${type}`;
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+</script>
+</body>
+</html>
