@@ -29,14 +29,78 @@ DIYANET_CITY_ID  = os.getenv("DIYANET_CITY_ID", "")   # find via /api/prayer/cou
 
 # ── Predefined screens — seeded on startup ────────────────────────────────────
 PREDEFINED_SCREENS = [
-    {"name": "Aabenraa Camii",             "slug": "aabenraa-camii"},
-    {"name": "Aarhus Selimiye Camii",      "slug": "aarhus-selimiye-camii"},
-    {"name": "Albertslund Alaaddin Camii", "slug": "albertslund-alaaddin-camii"},
-    {"name": "Avedøre Haci Bayram Camii",  "slug": "avedore-haci-bayram-camii"},
-    {"name": "Ballerup Fatih Camii",       "slug": "ballerup-fatih-camii"},
-    {"name": "Brabrand Kvinde afd",        "slug": "brabrand-kvinde-afd"},
-    {"name": "Brabrand Ulu Camii",         "slug": "brabrand-ulu-camii"},
+    {"name": "Aabenraa Camii",                  "slug": "aabenraa-camii",               "city_id": 12646},
+    {"name": "Aarhus Selimiye Camii",           "slug": "aarhus-selimiye-camii"},
+    {"name": "Albertslund Alaaddin Camii",      "slug": "albertslund-alaaddin-camii"},
+    {"name": "Avedøre Haci Bayram Camii",       "slug": "avedore-haci-bayram-camii"},
+    {"name": "Ballerup Fatih Camii",            "slug": "ballerup-fatih-camii"},
+    {"name": "Brabrand Kvinde afd.",            "slug": "brabrand-kvinde-afd"},
+    {"name": "Brabrand Ulu Camii",              "slug": "brabrand-ulu-camii"},
+    {"name": "Diyanet 1",                       "slug": "diyanet-1"},
+    {"name": "Diyanet 2",                       "slug": "diyanet-2"},
+    {"name": "Esbjerg Cami",                    "slug": "esbjerg-cami"},
+    {"name": "Farum Camii",                     "slug": "farum-camii"},
+    {"name": "Fredericia Camii",                "slug": "fredericia-camii"},
+    {"name": "Frederikssund Camii",             "slug": "frederikssund-camii"},
+    {"name": "Hedehusene Fetih Camii",          "slug": "hedehusene-fetih-camii",       "city_id": 17796},
+    {"name": "Herning Eyüp Camii",              "slug": "herning-eyup-camii"},
+    {"name": "Holbæk Süleymaniye Camii",        "slug": "holbaek-suleymaniye-camii"},
+    {"name": "Horsens Yunus Emre Camii",        "slug": "horsens-yunus-emre-camii"},
+    {"name": "Ikast Fatih Camii",               "slug": "ikast-fatih-camii"},
+    {"name": "Ishøj Mevlana Camii",             "slug": "ishoj-mevlana-camii"},
+    {"name": "Kocatepe Camii",                  "slug": "kocatepe-camii"},
+    {"name": "Køge Camii",                      "slug": "koge-camii"},
+    {"name": "Næstved Mimar Sinan Camii",       "slug": "naestved-mimar-sinan-camii",   "city_id": 12641},
+    {"name": "Nyborg Camii",                    "slug": "nyborg-camii"},
+    {"name": "Odense Selimiye Camii",           "slug": "odense-selimiye-camii"},
+    {"name": "Randers Camii",                   "slug": "randers-camii",                "city_id": 12643},
+    {"name": "Ringsted Yeni Camii",             "slug": "ringsted-yeni-camii"},
+    {"name": "Roskilde Ayasofya Camii",         "slug": "roskilde-ayasofya-camii"},
+    {"name": "Silkeborg Camii",                 "slug": "silkeborg-camii"},
+    {"name": "Slagelse Vakiflar Camii",         "slug": "slagelse-vakiflar-camii"},
+    {"name": "Svendborg Bilal Habesi Camii",    "slug": "svendborg-bilal-habesi-camii", "city_id": 12635},
+    {"name": "Taastrup Yunus Emre Camii",       "slug": "taastrup-yunus-emre-camii"},
+    {"name": "Vejle Camii",                     "slug": "vejle-camii"},
 ]
+
+PREDEFINED_GROUPS = {
+    "Jutland/Fyn": [
+        "aabenraa-camii",
+        "aarhus-selimiye-camii",
+        "brabrand-kvinde-afd",
+        "brabrand-ulu-camii",
+        "esbjerg-cami",
+        "fredericia-camii",
+        "herning-eyup-camii",
+        "horsens-yunus-emre-camii",
+        "ikast-fatih-camii",
+        "nyborg-camii",
+        "odense-selimiye-camii",
+        "randers-camii",
+        "silkeborg-camii",
+        "svendborg-bilal-habesi-camii",
+        "vejle-camii",
+    ],
+    "Zealand": [
+        "albertslund-alaaddin-camii",
+        "avedore-haci-bayram-camii",
+        "ballerup-fatih-camii",
+        "diyanet-1",
+        "diyanet-2",
+        "farum-camii",
+        "frederikssund-camii",
+        "hedehusene-fetih-camii",
+        "holbaek-suleymaniye-camii",
+        "ishoj-mevlana-camii",
+        "kocatepe-camii",
+        "koge-camii",
+        "naestved-mimar-sinan-camii",
+        "ringsted-yeni-camii",
+        "roskilde-ayasofya-camii",
+        "slagelse-vakiflar-camii",
+        "taastrup-yunus-emre-camii",
+    ],
+}
 
 # ── SSE listeners (in-memory, no need to persist) ─────────────────────────────
 listeners: dict[str, list[queue.Queue]] = {}
@@ -61,7 +125,8 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS screens (
                     id     SERIAL PRIMARY KEY,
                     name   TEXT NOT NULL,
-                    slug   TEXT UNIQUE NOT NULL,
+                    slug    TEXT UNIQUE NOT NULL,
+                    city_id INT  DEFAULT NULL,
                     created_at TIMESTAMPTZ DEFAULT now()
                 );
 
@@ -87,17 +152,69 @@ def init_db():
                 );
 
                 CREATE TABLE IF NOT EXISTS prayer_cache (
-                    cache_date  DATE PRIMARY KEY,
+                    cache_date  DATE NOT NULL,
+                    city_id     INT  NOT NULL,
                     times_json  TEXT NOT NULL,
-                    fetched_at  TIMESTAMPTZ DEFAULT now()
+                    fetched_at  TIMESTAMPTZ DEFAULT now(),
+                    PRIMARY KEY (cache_date, city_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS groups (
+                    id   SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    slug TEXT UNIQUE NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS group_screens (
+                    group_slug  TEXT NOT NULL REFERENCES groups(slug) ON DELETE CASCADE,
+                    screen_slug TEXT NOT NULL REFERENCES screens(slug) ON DELETE CASCADE,
+                    PRIMARY KEY (group_slug, screen_slug)
                 );
             """)
-            # Seed predefined screens — skip if already exists
+
+            # Add city_id column if upgrading from older DB
+            cur.execute("ALTER TABLE screens ADD COLUMN IF NOT EXISTS city_id INT DEFAULT NULL;")
+            # Recreate prayer_cache with city_id if it's missing that column
+            cur.execute("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='prayer_cache' AND column_name='city_id'
+                    ) THEN
+                        DROP TABLE IF EXISTS prayer_cache;
+                    END IF;
+                END $$;
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS prayer_cache (
+                    cache_date  DATE    NOT NULL,
+                    city_id     INT     NOT NULL,
+                    times_json  TEXT    NOT NULL,
+                    fetched_at  TIMESTAMPTZ DEFAULT now(),
+                    PRIMARY KEY (cache_date, city_id)
+                );
+            """)
+
+            # Seed predefined screens — skip if already exists, update city_id if set
             for s in PREDEFINED_SCREENS:
                 cur.execute(
-                    "INSERT INTO screens (name, slug) VALUES (%s, %s) ON CONFLICT (slug) DO NOTHING",
-                    (s["name"], s["slug"])
+                    "INSERT INTO screens (name, slug, city_id) VALUES (%s, %s, %s) ON CONFLICT (slug) DO UPDATE SET city_id = EXCLUDED.city_id WHERE EXCLUDED.city_id IS NOT NULL",
+                    (s["name"], s["slug"], s.get("city_id"))
                 )
+
+            # Seed predefined groups
+            import re as _re
+            for group_name, screen_slugs in PREDEFINED_GROUPS.items():
+                group_slug = _re.sub(r"[^a-z0-9_-]", "-", group_name.lower()).strip("-")
+                cur.execute(
+                    "INSERT INTO groups (name, slug) VALUES (%s, %s) ON CONFLICT (slug) DO NOTHING",
+                    (group_name, group_slug)
+                )
+                for screen_slug in screen_slugs:
+                    cur.execute(
+                        "INSERT INTO group_screens (group_slug, screen_slug) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                        (group_slug, screen_slug)
+                    )
             conn.commit()
     finally:
         rel_conn(conn)
@@ -112,6 +229,11 @@ def q_screens():
     finally:
         rel_conn(conn)
 
+def serialize_slide(row):
+    """Convert a DB row to a JSON-safe dict (strip datetime fields)."""
+    d = dict(row)
+    return {k: v for k, v in d.items() if k != 'created_at'}
+
 def q_slides(slug):
     conn = get_conn()
     try:
@@ -120,7 +242,7 @@ def q_slides(slug):
                 "SELECT * FROM slides WHERE screen_slug=%s ORDER BY position, created_at",
                 (slug,)
             )
-            return [dict(r) for r in cur.fetchall()]
+            return [serialize_slide(r) for r in cur.fetchall()]
     finally:
         rel_conn(conn)
 
@@ -204,9 +326,10 @@ class PrayerService:
             self._login()
         return {"Authorization": f"Bearer {self._token}"} if self._token else {}
 
-    def today(self):
-        """Return today's prayer times, using DB cache to avoid wasting API calls."""
-        if not DIYANET_CITY_ID:
+    def today(self, city_id=None):
+        """Return today's prayer times for a specific city, cached in DB."""
+        cid = city_id or (int(DIYANET_CITY_ID) if DIYANET_CITY_ID else None)
+        if not cid:
             return None
         today = date.today()
 
@@ -214,20 +337,19 @@ class PrayerService:
         conn = get_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("SELECT times_json FROM prayer_cache WHERE cache_date=%s", (today,))
+                cur.execute("SELECT times_json FROM prayer_cache WHERE cache_date=%s AND city_id=%s", (today, cid))
                 row = cur.fetchone()
                 if row:
                     return json.loads(row["times_json"])
         finally:
             rel_conn(conn)
 
-        # Not cached — fetch from API (uses 1 of your 5 daily requests)
+        # Not cached — fetch from API
         with self._lock:
-            # Double-check after acquiring lock
             conn = get_conn()
             try:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute("SELECT times_json FROM prayer_cache WHERE cache_date=%s", (today,))
+                    cur.execute("SELECT times_json FROM prayer_cache WHERE cache_date=%s AND city_id=%s", (today, cid))
                     row = cur.fetchone()
                     if row:
                         return json.loads(row["times_json"])
@@ -239,7 +361,7 @@ class PrayerService:
                 if not hdrs:
                     return None
                 r = http.get(
-                    f"{self.BASE}/api/PrayerTime/Daily/{DIYANET_CITY_ID}",
+                    f"{self.BASE}/api/PrayerTime/Daily/{cid}",
                     headers=hdrs,
                     timeout=10
                 )
@@ -267,10 +389,10 @@ class PrayerService:
                     try:
                         with conn.cursor() as cur:
                             cur.execute("""
-                                INSERT INTO prayer_cache (cache_date, times_json)
-                                VALUES (%s, %s)
-                                ON CONFLICT (cache_date) DO UPDATE SET times_json=EXCLUDED.times_json
-                            """, (today, json.dumps(result)))
+                                INSERT INTO prayer_cache (cache_date, city_id, times_json)
+                                VALUES (%s, %s, %s)
+                                ON CONFLICT (cache_date, city_id) DO UPDATE SET times_json=EXCLUDED.times_json
+                            """, (today, cid, json.dumps(result)))
                             conn.commit()
                     finally:
                         rel_conn(conn)
@@ -368,17 +490,33 @@ def next_position(screen_slug):
     finally:
         rel_conn(conn)
 
+def q_groups():
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT slug, name FROM groups ORDER BY name")
+            grps = [dict(r) for r in cur.fetchall()]
+            result = {}
+            for g in grps:
+                cur.execute("SELECT screen_slug FROM group_screens WHERE group_slug=%s", (g["slug"],))
+                result[g["slug"]] = {"name": g["name"], "screens": [r["screen_slug"] for r in cur.fetchall()]}
+            return result
+    finally:
+        rel_conn(conn)
+
 # ── Admin page ────────────────────────────────────────────────────────────────
 @app.route("/")
 def admin():
     screens = q_screens()
     library = q_library()
-    return render_template("admin.html", screens=screens, library=library)
+    groups  = q_groups()
+    return render_template("admin.html", screens=screens, library=library, groups=groups)
 
 # ── Prayer times API ──────────────────────────────────────────────────────────
 @app.route("/api/prayer/today")
 def prayer_today():
-    times = prayer.today()
+    city_id = request.args.get("city_id", type=int)
+    times = prayer.today(city_id=city_id)
     if times:
         return jsonify({"success": True, "times": times})
     return jsonify({"success": False, "times": None}), 200
@@ -445,7 +583,8 @@ def push_media():
     filename      = data.get("filename")
     original_name = data.get("original_name", filename)
     duration      = float(data.get("duration", 5))
-    targets       = data.get("screens", [])
+    target_screens = data.get("screens", [])
+    target_groups  = data.get("groups", [])
 
     if not filename:
         return jsonify({"error": "filename is required."}), 400
@@ -457,14 +596,34 @@ def push_media():
         return jsonify({"error": "Cannot read image."}), 400
 
     pushed = []
-    for slug in targets:
-        if not screen_exists(slug):
-            continue
+
+    def push_to(slug):
+        if slug in pushed or not screen_exists(slug):
+            return
         pos   = next_position(slug)
         slide = make_slide(filename, original_name, size, duration, slug, pos)
         insert_slide(slide)
         push_event(slug, "slide_added", slide)
         pushed.append(slug)
+
+    # Push to individual screens
+    for slug in target_screens:
+        push_to(slug)
+
+    # Push to groups — resolve screen slugs from DB
+    if target_groups:
+        conn = get_conn()
+        try:
+            with conn.cursor() as cur:
+                for group_slug in target_groups:
+                    cur.execute(
+                        "SELECT screen_slug FROM group_screens WHERE group_slug=%s",
+                        (group_slug,)
+                    )
+                    for row in cur.fetchall():
+                        push_to(row[0])
+        finally:
+            rel_conn(conn)
 
     return jsonify({"message": f"Pushed to {len(pushed)} screen(s).", "screens": pushed}), 200
 
@@ -555,8 +714,8 @@ def update_duration(slug, slide_id):
         rel_conn(conn)
     if not row:
         return jsonify({"error": "Slide not found."}), 404
-    push_event(slug, "slide_updated", dict(row))
-    return jsonify(dict(row)), 200
+    push_event(slug, "slide_updated", serialize_slide(row))
+    return jsonify(serialize_slide(row)), 200
 
 @app.route("/api/screens/<slug>/reorder", methods=["POST"])
 def reorder_slides(slug):
@@ -596,11 +755,11 @@ def display_screen(slug):
     conn = get_conn()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT name FROM screens WHERE slug=%s", (slug,))
+            cur.execute("SELECT name, city_id FROM screens WHERE slug=%s", (slug,))
             screen = cur.fetchone()
     finally:
         rel_conn(conn)
-    return render_template("screen.html", screen_slug=slug, screen_name=screen["name"])
+    return render_template("screen.html", screen_slug=slug, screen_name=screen["name"], city_id=screen["city_id"] or "")
 
 # ── Static files ──────────────────────────────────────────────────────────────
 @app.route("/static/uploads/<filename>")
