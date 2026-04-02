@@ -34,7 +34,7 @@
       bottom: 0; left: 0; right: 0;
       z-index: 20;
       background: transparent;
-      padding: 0 60px 16px;
+      padding: 0 40px 14px;
       display: flex;
       justify-content: center;
       align-items: flex-end;
@@ -42,46 +42,38 @@
     }
 
     .prayer-item {
-      flex: 1;
+      flex: 0 0 auto;
       text-align: center;
-      padding: 0 10px;
-      border-right: 1px solid rgba(255,255,255,0.15);
+      padding: 0 20px;
+      border-right: 1px solid rgba(255,255,255,0.2);
     }
     .prayer-item:last-child { border-right: none; }
 
     .p-label {
       display: block;
       font-family: 'Segoe UI', Tahoma, sans-serif;
-      font-size: clamp(0.52rem, 0.75vw, 0.68rem);
-      font-weight: 400;
-      letter-spacing: 0.14em;
+      font-size: clamp(0.6rem, 0.9vw, 0.78rem);
+      font-weight: 600;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: rgba(255,255,255,0.9);
-      text-shadow:
-        0 0 8px rgba(0,0,0,1),
-        0 0 16px rgba(0,0,0,1),
-        -1px -1px 4px rgba(0,0,0,1),
-        1px 1px 4px rgba(0,0,0,1);
-      margin-bottom: 3px;
+      color: rgba(255,255,255,0.95);
+      text-shadow: 0 1px 6px rgba(0,0,0,0.65);
+      margin-bottom: 2px;
     }
 
     .p-time {
       display: block;
       font-family: 'Segoe UI', Tahoma, sans-serif;
-      font-size: clamp(0.85rem, 1.4vw, 1.2rem);
-      font-weight: 300;
-      letter-spacing: 0.06em;
+      font-size: clamp(1rem, 1.8vw, 1.5rem);
+      font-weight: 400;
+      letter-spacing: 0.04em;
       color: #ffffff;
-      text-shadow:
-        0 0 10px rgba(0,0,0,1),
-        0 0 20px rgba(0,0,0,1),
-        -1px -1px 5px rgba(0,0,0,1),
-        1px 1px 5px rgba(0,0,0,1);
+      text-shadow: 0 2px 8px rgba(0,0,0,0.6);
     }
 
     /* Active prayer highlighted in gold */
-    .prayer-item.active .p-label { color: rgba(255,215,100,1); }
-    .prayer-item.active .p-time  { color: #ffd764; font-weight: 400; }
+    .prayer-item.active .p-label { color: rgba(255,220,80,1); text-shadow: 0 1px 6px rgba(0,0,0,0.5); }
+    .prayer-item.active .p-time  { color: #ffdc50; font-weight: 600; text-shadow: 0 2px 8px rgba(0,0,0,0.5); }
 
     /* Offline badge */
     #offline-badge {
@@ -141,6 +133,7 @@
 
 <script>
   const SCREEN      = {{ screen_slug | tojson }};
+  const CITY_ID     = {{ city_id | tojson }};
   const STORAGE_KEY = `slides_${SCREEN}`;
   const PT_KEY      = `prayer_${SCREEN}`;
 
@@ -215,7 +208,8 @@
 
   async function fetchPrayer() {
     try {
-      const res = await fetch('/api/prayer/today');
+      const url = CITY_ID ? `/api/prayer/today?city_id=${CITY_ID}` : '/api/prayer/today';
+      const res = await fetch(url);
       const data = await res.json();
       if (data.success && data.times) {
         savePrayer(data.times);
