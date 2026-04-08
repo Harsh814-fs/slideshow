@@ -37,6 +37,15 @@
       background: var(--surface); border-bottom: 1px solid var(--border);
       padding: 0 28px; display: flex; align-items: center; height: 56px; gap: 16px;
     }
+    .logout-btn {
+      margin-left: auto;
+      background: none; border: 1px solid var(--border2);
+      color: var(--muted); border-radius: 6px;
+      padding: 5px 12px; font-size: 0.78rem; font-weight: 500;
+      cursor: pointer; text-decoration: none; font-family: inherit;
+      transition: all 0.15s;
+    }
+    .logout-btn:hover { background: var(--danger-bg); color: var(--danger); border-color: #f5c6c2; }
     .brand-mark {
       width: 28px; height: 28px; background: var(--accent);
       border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
@@ -209,6 +218,16 @@
     .rm-btn   { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 5px; padding: 3px 8px; font-size: 0.72rem; cursor: pointer; transition: all 0.12s; font-family: inherit; }
     .rm-btn:hover { background: var(--danger-bg); border-color: #f5c6c2; color: var(--danger); }
 
+    .usr-screen-item { display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);margin-bottom:5px;cursor:pointer;transition:all 0.12s;box-shadow:var(--shadow); }
+    .usr-screen-item:hover { border-color:var(--border2); }
+    .usr-screen-item.checked { border-color:var(--accent);background:var(--accent-bg); }
+    .usr-screen-item .uchk { width:16px;height:16px;border-radius:3px;border:1.5px solid var(--border2);background:var(--surface);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0.58rem;color:#fff;font-weight:700;transition:all 0.12s; }
+    .usr-screen-item.checked .uchk { background:var(--accent);border-color:var(--accent); }
+    .user-item { display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;border:1px solid transparent;transition:all 0.12s;margin-bottom:2px; }
+    .user-item:hover { background:var(--bg);border-color:var(--border); }
+    .user-item.active { background:var(--accent-bg);border-color:rgba(45,90,61,0.25); }
+    .user-dot { width:6px;height:6px;border-radius:50%;background:var(--border2);flex-shrink:0; }
+    .user-item.active .user-dot { background:var(--accent); }
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
@@ -217,17 +236,17 @@
 <body>
 
 <header>
-  <div class="brand-mark">
-    <svg viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="10" rx="2"/><path d="M5 14h6M8 11v3"/></svg>
-  </div>
-  <span class="brand-name">Slideshow</span>
+  <img src="/logo.png" alt="Diyanet Danmark" style="height:36px;width:auto;object-fit:contain;"/>
   <span class="brand-div">/</span>
   <span class="brand-sub">Admin Panel</span>
+  <a href="/logout" class="logout-btn">Sign out</a>
 </header>
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('push')">Push Media</div>
-  <div class="tab" onclick="switchTab('screens')">Manage Screens</div>
+  {% if is_admin %}<div class="tab" onclick="switchTab('screens')">Manage Screens</div>{% endif %}
+  {% if is_admin %}<div class="tab" onclick="switchTab('groups')">Groups</div>{% endif %}
+  {% if is_admin %}<div class="tab" onclick="switchTab('users')">Users</div>{% endif %}
 </div>
 
 <!-- PUSH MEDIA -->
@@ -270,6 +289,97 @@
       <button class="push-btn" id="pushBtn" onclick="pushMedia()" disabled>Push to Selected</button>
       <div class="push-st" id="pushStatus"></div>
       <div class="sel-sum" id="selSummary"></div>
+    </div>
+  </div>
+</div>
+
+<!-- GROUPS -->
+<div class="screens-view" id="tab-groups" style="display:none">
+  <div class="sm-sidebar">
+    <div class="sm-sec">
+      <h3>Create Group</h3>
+      <div class="input-row">
+        <input type="text" id="newGroupInput" placeholder="Group name…" maxlength="60" onkeydown="if(event.key==='Enter') createGroup()"/>
+        <button class="btn-add" onclick="createGroup()">Add</button>
+      </div>
+      <div class="err-msg" id="groupErr"></div>
+    </div>
+    <div class="scr-list-wrap">
+      <div id="noGroups" class="no-items" style="display:none">No groups yet.</div>
+      <div id="groupListSM"></div>
+    </div>
+  </div>
+
+  <div class="sm-main">
+    <div class="sm-empty" id="groupEmpty">
+      <div class="sm-empty-ico">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </div>
+      <p>Select a group to manage its screens</p>
+    </div>
+    <div class="sm-editor" id="groupEditor">
+      <div class="sm-head">
+        <div class="etitle" id="groupEditorTitle"></div>
+        <div class="eurl" id="groupEditorSub"></div>
+      </div>
+      <div class="slide-wrap">
+        <div style="padding:4px 0 12px;font-size:0.72rem;color:var(--muted)">Check the screens that belong to this group:</div>
+        <div id="groupScreenList"></div>
+        <div style="margin-top:16px;display:flex;align-items:center;gap:12px">
+          <button class="btn-add" onclick="saveGroupScreens()">Save</button>
+          <span id="groupSaveStatus" style="font-size:0.78rem;color:var(--success);display:none">Saved!</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- USERS -->
+<div class="screens-view" id="tab-users" style="display:none">
+  <div class="sm-sidebar">
+    <div class="sm-sec">
+      <h3>Create User</h3>
+      <div class="field" style="margin-bottom:10px">
+        <label style="font-size:0.72rem;color:var(--muted);display:block;margin-bottom:4px">Username</label>
+        <input type="text" id="newUserName" placeholder="username" style="width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:7px 10px;font-size:0.82rem;outline:none;font-family:inherit"/>
+      </div>
+      <div class="field" style="margin-bottom:10px">
+        <label style="font-size:0.72rem;color:var(--muted);display:block;margin-bottom:4px">Password</label>
+        <input type="password" id="newUserPass" placeholder="min. 4 characters" style="width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:7px 10px;font-size:0.82rem;outline:none;font-family:inherit"/>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <input type="checkbox" id="newUserAdmin" style="width:14px;height:14px"/>
+        <label for="newUserAdmin" style="font-size:0.78rem;color:var(--muted)">Admin access</label>
+      </div>
+      <button class="btn-add" onclick="createUser()" style="width:100%">Create User</button>
+      <div class="err-msg" id="userErr"></div>
+    </div>
+    <div class="scr-list-wrap">
+      <div class="no-items" id="noUsers" style="display:none">No users yet.</div>
+      <div id="userListSM"></div>
+    </div>
+  </div>
+
+  <div class="sm-main">
+    <div class="sm-empty" id="userEmpty">
+      <div class="sm-empty-ico">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      </div>
+      <p>Select a user to manage their screen access</p>
+    </div>
+    <div class="sm-editor" id="userEditor">
+      <div class="sm-head">
+        <div class="etitle" id="userEditorTitle"></div>
+        <div class="eurl" id="userEditorSub"></div>
+      </div>
+      <div class="slide-wrap">
+        <div style="padding:4px 0 12px;font-size:0.72rem;color:var(--muted)">Check the screens this user can access and push to:</div>
+        <div id="userScreenList"></div>
+        <div style="margin-top:16px">
+          <button class="btn-add" onclick="saveUserScreens()">Save Access</button>
+          <span id="userSaveStatus" style="font-size:0.78rem;color:var(--success);margin-left:10px;display:none">Saved!</span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -326,10 +436,274 @@
 
   const PREDEFINED_SLUGS = new Set(allScreens.map(s => s.slug));
 
+  const IS_ADMIN = {{ is_admin | tojson }};
+  const CURRENT_USER = {{ current_user | tojson }};
+
   function switchTab(tab) {
-    document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['push','screens'][i]===tab));
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    event?.target?.classList.add('active');
     document.getElementById('tab-push').classList.toggle('active', tab==='push');
-    document.getElementById('tab-screens').classList.toggle('active', tab==='screens');
+    const st = document.getElementById('tab-screens');
+    if (st) st.classList.toggle('active', tab==='screens');
+    const gt = document.getElementById('tab-groups');
+    if (gt) gt.style.display = tab==='groups' ? 'grid' : 'none';
+    const ut = document.getElementById('tab-users');
+    if (ut) ut.style.display = tab==='users' ? 'grid' : 'none';
+    if (tab==='users')  loadUsers();
+    if (tab==='groups') loadGroups();
+  }
+
+  // ── Groups tab ───────────────────────────────────────────────────────────────
+  let currentGroupSlug = null;
+  let currentGroupScreens = new Set();
+  let groupsData = {};
+
+  async function loadGroups() {
+    const res = await fetch('/api/groups');
+    groupsData = await res.json();
+    renderGroupList();
+  }
+
+  function renderGroupList() {
+    const list  = document.getElementById('groupListSM');
+    const empty = document.getElementById('noGroups');
+    const keys  = Object.keys(groupsData);
+    empty.style.display = keys.length ? 'none' : 'block';
+    list.innerHTML = '';
+    keys.forEach(slug => {
+      const g   = groupsData[slug];
+      const div = document.createElement('div');
+      div.className = 'scr-item';
+      div.id = `grp-${slug}`;
+      div.innerHTML = `
+        <div class="scr-dot"></div>
+        <div class="scr-name">${g.name}</div>
+        <div class="scr-count">${g.screens.length}</div>
+        <button class="del-btn" onclick="deleteGroup('${slug}', event)" title="Delete">&#215;</button>`;
+      div.addEventListener('click', () => selectGroup(slug, g));
+      list.appendChild(div);
+    });
+  }
+
+  function selectGroup(slug, g) {
+    document.querySelectorAll('#groupListSM .scr-item').forEach(el => el.classList.remove('active'));
+    document.getElementById(`grp-${slug}`)?.classList.add('active');
+    currentGroupSlug    = slug;
+    currentGroupScreens = new Set(g.screens);
+    document.getElementById('groupEmpty').style.display = 'none';
+    document.getElementById('groupEditor').classList.add('visible');
+    document.getElementById('groupEditorTitle').textContent = g.name;
+    document.getElementById('groupEditorSub').textContent   = `${g.screens.length} screens`;
+    document.getElementById('groupSaveStatus').style.display = 'none';
+    renderGroupScreenList();
+  }
+
+  function renderGroupScreenList() {
+    const list = document.getElementById('groupScreenList');
+    list.innerHTML = '';
+    allScreens.forEach(s => {
+      const checked = currentGroupScreens.has(s.slug);
+      const div = document.createElement('div');
+      div.className = 'usr-screen-item' + (checked ? ' checked' : '');
+      div.id = `gscr-${s.slug}`;
+      div.innerHTML = `
+        <div class="uchk" id="gchk-${s.slug}">${checked ? '&#10003;' : ''}</div>
+        <div>
+          <div style="font-size:0.83rem;font-weight:500;color:var(--text)">${s.name}</div>
+          <div style="font-size:0.7rem;color:var(--muted)">${s.slug}</div>
+        </div>`;
+      div.addEventListener('click', () => {
+        if (currentGroupScreens.has(s.slug)) {
+          currentGroupScreens.delete(s.slug);
+          div.classList.remove('checked');
+          document.getElementById(`gchk-${s.slug}`).innerHTML = '';
+        } else {
+          currentGroupScreens.add(s.slug);
+          div.classList.add('checked');
+          document.getElementById(`gchk-${s.slug}`).innerHTML = '&#10003;';
+        }
+      });
+      list.appendChild(div);
+    });
+  }
+
+  async function saveGroupScreens() {
+    if (!currentGroupSlug) return;
+    const screens = [...currentGroupScreens];
+    const res = await fetch(`/api/groups/${currentGroupSlug}/screens`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ screens })
+    });
+    if (res.ok) {
+      groupsData[currentGroupSlug].screens = screens;
+      renderGroupList();
+      document.getElementById('groupEditorSub').textContent = `${screens.length} screens`;
+      const st = document.getElementById('groupSaveStatus');
+      st.style.display = 'inline';
+      setTimeout(() => st.style.display = 'none', 2000);
+      // Refresh dest groups in push tab
+      const wrap = document.getElementById('destGroups');
+      const el   = document.getElementById(`dest-group-${currentGroupSlug}`);
+      if (el) el.querySelector('.dl-sub').textContent = `${screens.length} screens`;
+      allGroups[currentGroupSlug] = groupsData[currentGroupSlug];
+    }
+  }
+
+  async function createGroup() {
+    const input = document.getElementById('newGroupInput');
+    const err   = document.getElementById('groupErr');
+    const name  = input.value.trim();
+    if (!name) { err.textContent = 'Enter a name.'; return; }
+    err.textContent = '';
+    const res  = await fetch('/api/groups', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ name, screens: [] })
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.error; return; }
+    input.value = '';
+    groupsData[data.slug] = { name: data.name, screens: [] };
+    allGroups[data.slug]  = { name: data.name, screens: [] };
+    renderGroupList();
+    // Add to push tab destinations
+    addDestGroup(data.slug, { name: data.name, screens: [] });
+    document.getElementById('noDestGroups').style.display = 'none';
+  }
+
+  async function deleteGroup(slug, e) {
+    e.stopPropagation();
+    if (!confirm(`Delete group "${groupsData[slug]?.name}"?`)) return;
+    await fetch(`/api/groups/${slug}`, { method: 'DELETE' });
+    delete groupsData[slug];
+    delete allGroups[slug];
+    renderGroupList();
+    document.getElementById(`dest-group-${slug}`)?.remove();
+    if (currentGroupSlug === slug) {
+      currentGroupSlug = null;
+      document.getElementById('groupEmpty').style.display = 'flex';
+      document.getElementById('groupEditor').classList.remove('visible');
+    }
+  }
+
+  // ── Users tab ────────────────────────────────────────────────────────────────
+  let currentUserId = null;
+  let currentUserScreens = new Set();
+  let allUsers = [];
+
+  async function loadUsers() {
+    const res  = await fetch('/api/users');
+    allUsers   = await res.json();
+    renderUserList();
+  }
+
+  function renderUserList() {
+    const list  = document.getElementById('userListSM');
+    const empty = document.getElementById('noUsers');
+    empty.style.display = allUsers.length ? 'none' : 'block';
+    list.innerHTML = '';
+    allUsers.forEach(u => {
+      const div = document.createElement('div');
+      div.className = 'user-item';
+      div.id = `user-${u.id}`;
+      div.innerHTML = `
+        <div class="user-dot"></div>
+        <div class="scr-name">${u.username}${u.is_admin ? ' <span class="seeded-tag">admin</span>' : ''}</div>
+        <div class="scr-count">${u.screens.length} screens</div>
+        <button class="del-btn" onclick="deleteUser(${u.id}, event)" title="Delete">&#215;</button>`;
+      div.addEventListener('click', () => selectUser(u));
+      list.appendChild(div);
+    });
+  }
+
+  function selectUser(u) {
+    document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
+    document.getElementById(`user-${u.id}`)?.classList.add('active');
+    currentUserId = u.id;
+    currentUserScreens = new Set(u.screens);
+    document.getElementById('userEmpty').style.display = 'none';
+    document.getElementById('userEditor').classList.add('visible');
+    document.getElementById('userEditorTitle').textContent = u.username;
+    document.getElementById('userEditorSub').textContent = u.is_admin ? 'Admin — has full access' : `${u.screens.length} screens assigned`;
+    document.getElementById('userSaveStatus').style.display = 'none';
+    renderUserScreenList();
+  }
+
+  function renderUserScreenList() {
+    const list = document.getElementById('userScreenList');
+    list.innerHTML = '';
+    allScreens.forEach(s => {
+      const checked = currentUserScreens.has(s.slug);
+      const div = document.createElement('div');
+      div.className = 'usr-screen-item' + (checked ? ' checked' : '');
+      div.id = `uscr-${s.slug}`;
+      div.innerHTML = `
+        <div class="uchk" id="uchk-${s.slug}">${checked ? '✓' : ''}</div>
+        <div>
+          <div style="font-size:0.83rem;font-weight:500;color:var(--text)">${s.name}</div>
+          <div style="font-size:0.7rem;color:var(--muted)">${s.slug}</div>
+        </div>`;
+      div.addEventListener('click', () => {
+        if (currentUserScreens.has(s.slug)) {
+          currentUserScreens.delete(s.slug);
+          div.classList.remove('checked');
+          document.getElementById(`uchk-${s.slug}`).textContent = '';
+        } else {
+          currentUserScreens.add(s.slug);
+          div.classList.add('checked');
+          document.getElementById(`uchk-${s.slug}`).textContent = '✓';
+        }
+      });
+      list.appendChild(div);
+    });
+  }
+
+  async function saveUserScreens() {
+    if (!currentUserId) return;
+    const res = await fetch(`/api/users/${currentUserId}/screens`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ screens: [...currentUserScreens] })
+    });
+    if (res.ok) {
+      const u = allUsers.find(x => x.id === currentUserId);
+      if (u) { u.screens = [...currentUserScreens]; renderUserList(); }
+      const st = document.getElementById('userSaveStatus');
+      st.style.display = 'inline';
+      setTimeout(() => st.style.display = 'none', 2000);
+    }
+  }
+
+  async function createUser() {
+    const name  = document.getElementById('newUserName').value.trim();
+    const pass  = document.getElementById('newUserPass').value.trim();
+    const adm   = document.getElementById('newUserAdmin').checked;
+    const err   = document.getElementById('userErr');
+    if (!name || !pass) { err.textContent = 'Name and password required.'; return; }
+    err.textContent = '';
+    const res  = await fetch('/api/users', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username: name, password: pass, is_admin: adm, screens: [] })
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.error; return; }
+    document.getElementById('newUserName').value = '';
+    document.getElementById('newUserPass').value = '';
+    document.getElementById('newUserAdmin').checked = false;
+    allUsers.push(data);
+    renderUserList();
+    document.getElementById('noUsers').style.display = 'none';
+  }
+
+  async function deleteUser(id, e) {
+    e.stopPropagation();
+    if (!confirm('Delete this user?')) return;
+    await fetch(`/api/users/${id}`, { method: 'DELETE' });
+    allUsers = allUsers.filter(u => u.id !== id);
+    renderUserList();
+    if (currentUserId === id) {
+      currentUserId = null;
+      document.getElementById('userEmpty').style.display = 'flex';
+      document.getElementById('userEditor').classList.remove('visible');
+    }
   }
 
   // Init
