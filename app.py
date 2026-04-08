@@ -1,11 +1,13 @@
 import os
 import uuid
+import hashlib
+import re
 import json
 import queue
 import threading
 import requests as http
 from datetime import datetime, date, timedelta
-from flask import Flask, render_template, request, jsonify, send_from_directory, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify, send_from_directory, Response, stream_with_context, session, redirect, url_for
 from PIL import Image
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -15,6 +17,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", os.urandom(24).hex())
+
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
@@ -169,6 +175,20 @@ def init_db():
                     group_slug  TEXT NOT NULL REFERENCES groups(slug) ON DELETE CASCADE,
                     screen_slug TEXT NOT NULL REFERENCES screens(slug) ON DELETE CASCADE,
                     PRIMARY KEY (group_slug, screen_slug)
+                );
+
+                CREATE TABLE IF NOT EXISTS users (
+                    id            SERIAL PRIMARY KEY,
+                    username      TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    is_admin      BOOLEAN DEFAULT FALSE,
+                    created_at    TIMESTAMPTZ DEFAULT now()
+                );
+
+                CREATE TABLE IF NOT EXISTS user_screens (
+                    user_id     INT  NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    screen_slug TEXT NOT NULL REFERENCES screens(slug) ON DELETE CASCADE,
+                    PRIMARY KEY (user_id, screen_slug)
                 );
             """)
 
@@ -504,13 +524,91 @@ def q_groups():
     finally:
         rel_conn(conn)
 
+# ── Auth helpers ─────────────────────────────────────────────────────────────
+def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
+
+def login_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated
+
+def admin_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("is_admin"):
+            return jsonify({"error": "Admin access required."}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+def q_user_screens(user_id):
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT screen_slug FROM user_screens WHERE user_id=%s", (user_id,))
+            return [r[0] for r in cur.fetchall()]
+    finally:
+        rel_conn(conn)
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        # Check master admin first
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            session["logged_in"] = True
+            session["is_admin"]  = True
+            session["username"]  = username
+            session["user_id"]   = None
+            return redirect(url_for("admin"))
+        # Check DB users
+        conn = get_conn()
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM users WHERE username=%s AND password_hash=%s",
+                            (username, hash_pw(password)))
+                user = cur.fetchone()
+        finally:
+            rel_conn(conn)
+        if user:
+            session["logged_in"] = True
+            session["is_admin"]  = user["is_admin"]
+            session["username"]  = user["username"]
+            session["user_id"]   = user["id"]
+            return redirect(url_for("admin"))
+        error = "Invalid username or password."
+    return render_template("login.html", error=error)
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
 # ── Admin page ────────────────────────────────────────────────────────────────
 @app.route("/")
+@login_required
 def admin():
-    screens = q_screens()
-    library = q_library()
-    groups  = q_groups()
-    return render_template("admin.html", screens=screens, library=library, groups=groups)
+    is_admin    = session.get("is_admin", False)
+    all_screens = q_screens()
+    library     = q_library()
+    groups      = q_groups()
+    if is_admin:
+        screens = all_screens
+    else:
+        user_id = session.get("user_id")
+        allowed = set(q_user_screens(user_id)) if user_id else set()
+        screens = [s for s in all_screens if s["slug"] in allowed]
+    return render_template("admin.html",
+        screens=screens, library=library,
+        groups=groups if is_admin else {},
+        is_admin=is_admin,
+        current_user=session.get("username", ""))
 
 # ── Prayer times API ──────────────────────────────────────────────────────────
 @app.route("/api/prayer/today")
@@ -536,10 +634,12 @@ def prayer_cities(state_id):
 
 # ── Library routes ────────────────────────────────────────────────────────────
 @app.route("/api/library", methods=["GET"])
+@login_required
 def get_library():
     return jsonify(q_library())
 
 @app.route("/api/library/upload", methods=["POST"])
+@login_required
 def library_upload():
     if "file" not in request.files:
         return jsonify({"error": "No file provided."}), 400
@@ -566,6 +666,7 @@ def library_upload():
     return jsonify(item), 201
 
 @app.route("/api/library/<item_id>", methods=["DELETE"])
+@login_required
 def delete_library(item_id):
     conn = get_conn()
     try:
@@ -578,6 +679,7 @@ def delete_library(item_id):
 
 # ── Push media to screens ─────────────────────────────────────────────────────
 @app.route("/api/push", methods=["POST"])
+@login_required
 def push_media():
     data          = request.get_json()
     filename      = data.get("filename")
@@ -633,12 +735,12 @@ def list_screens():
     return jsonify(q_screens())
 
 @app.route("/api/screens", methods=["POST"])
+@login_required
 def create_screen():
     data = request.get_json()
     name = (data or {}).get("name", "").strip()
     if not name:
         return jsonify({"error": "Name required."}), 400
-    import re
     slug = re.sub(r"[^a-z0-9_-]", "-", name.lower().strip())
     slug = re.sub(r"-+", "-", slug).strip("-")
     if not slug:
@@ -657,6 +759,7 @@ def create_screen():
     return jsonify({"name": name, "slug": slug}), 201
 
 @app.route("/api/screens/<slug>", methods=["DELETE"])
+@login_required
 def delete_screen(slug):
     if not screen_exists(slug):
         return jsonify({"error": "Screen not found."}), 404
@@ -769,6 +872,167 @@ def serve_upload(filename):
 @app.route("/static/service-worker.js")
 def service_worker():
     return send_from_directory(os.path.join(BASE_DIR, "static"), "service-worker.js", mimetype="application/javascript")
+
+@app.route("/logo.png")
+def serve_logo():
+    return send_from_directory(BASE_DIR, "logo.png")
+
+# ── Groups API ────────────────────────────────────────────────────────────────
+@app.route("/api/groups", methods=["GET"])
+@login_required
+def get_groups():
+    return jsonify(q_groups())
+
+@app.route("/api/groups", methods=["POST"])
+@login_required
+@admin_required
+def create_group():
+    data = request.get_json()
+    name = (data or {}).get("name", "").strip()
+    screens = (data or {}).get("screens", [])
+    if not name:
+        return jsonify({"error": "Name required."}), 400
+    slug = re.sub(r"[^a-z0-9_-]", "-", name.lower()).strip("-")
+    slug = re.sub(r"-+", "-", slug)
+    if not slug:
+        return jsonify({"error": "Invalid name."}), 400
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            try:
+                cur.execute("INSERT INTO groups (name, slug) VALUES (%s, %s)", (name, slug))
+            except psycopg2.errors.UniqueViolation:
+                conn.rollback()
+                return jsonify({"error": f"Group '{name}' already exists."}), 409
+            for screen_slug in screens:
+                cur.execute(
+                    "INSERT INTO group_screens (group_slug, screen_slug) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                    (slug, screen_slug)
+                )
+            conn.commit()
+    finally:
+        rel_conn(conn)
+    return jsonify({"slug": slug, "name": name, "screens": screens}), 201
+
+@app.route("/api/groups/<group_slug>", methods=["DELETE"])
+@login_required
+@admin_required
+def delete_group(group_slug):
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM groups WHERE slug=%s", (group_slug,))
+            conn.commit()
+    finally:
+        rel_conn(conn)
+    return jsonify({"message": "Deleted."}), 200
+
+@app.route("/api/groups/<group_slug>/screens", methods=["PUT"])
+@login_required
+@admin_required
+def update_group_screens(group_slug):
+    data    = request.get_json()
+    screens = (data or {}).get("screens", [])
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM group_screens WHERE group_slug=%s", (group_slug,))
+            for slug in screens:
+                cur.execute(
+                    "INSERT INTO group_screens (group_slug, screen_slug) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                    (group_slug, slug)
+                )
+            conn.commit()
+    finally:
+        rel_conn(conn)
+    return jsonify({"screens": screens}), 200
+
+# ── Users API ────────────────────────────────────────────────────────────────
+@app.route("/api/users", methods=["GET"])
+@login_required
+@admin_required
+def list_users():
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT id, username, is_admin, created_at FROM users ORDER BY username")
+            users = [dict(r) for r in cur.fetchall()]
+            for u in users:
+                u["created_at"] = str(u["created_at"])[:10]
+                cur.execute("SELECT screen_slug FROM user_screens WHERE user_id=%s", (u["id"],))
+                u["screens"] = [r["screen_slug"] for r in cur.fetchall()]
+            return jsonify(users)
+    finally:
+        rel_conn(conn)
+
+@app.route("/api/users", methods=["POST"])
+@login_required
+@admin_required
+def create_user():
+    data     = request.get_json()
+    username = (data or {}).get("username", "").strip()
+    password = (data or {}).get("password", "").strip()
+    screens  = (data or {}).get("screens", [])
+    is_adm   = bool((data or {}).get("is_admin", False))
+    if not username or not password:
+        return jsonify({"error": "Username and password required."}), 400
+    if len(password) < 4:
+        return jsonify({"error": "Password must be at least 4 characters."}), 400
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            try:
+                cur.execute(
+                    "INSERT INTO users (username, password_hash, is_admin) VALUES (%s, %s, %s) RETURNING id, username, is_admin",
+                    (username, hash_pw(password), is_adm)
+                )
+                user = dict(cur.fetchone())
+            except psycopg2.errors.UniqueViolation:
+                conn.rollback()
+                return jsonify({"error": f"Username '{username}' already exists."}), 409
+            for slug in screens:
+                cur.execute(
+                    "INSERT INTO user_screens (user_id, screen_slug) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                    (user["id"], slug)
+                )
+            conn.commit()
+            user["screens"] = screens
+            return jsonify(user), 201
+    finally:
+        rel_conn(conn)
+
+@app.route("/api/users/<int:user_id>", methods=["DELETE"])
+@login_required
+@admin_required
+def delete_user(user_id):
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM users WHERE id=%s", (user_id,))
+            conn.commit()
+    finally:
+        rel_conn(conn)
+    return jsonify({"message": "Deleted."}), 200
+
+@app.route("/api/users/<int:user_id>/screens", methods=["PUT"])
+@login_required
+@admin_required
+def update_user_screens(user_id):
+    data    = request.get_json()
+    screens = (data or {}).get("screens", [])
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM user_screens WHERE user_id=%s", (user_id,))
+            for slug in screens:
+                cur.execute(
+                    "INSERT INTO user_screens (user_id, screen_slug) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                    (user_id, slug)
+                )
+            conn.commit()
+    finally:
+        rel_conn(conn)
+    return jsonify({"screens": screens}), 200
 
 # ── Boot ──────────────────────────────────────────────────────────────────────
 with app.app_context():
