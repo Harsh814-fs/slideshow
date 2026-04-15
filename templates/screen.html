@@ -19,14 +19,8 @@
     .slide.active { opacity: 1; z-index: 1; }
     .slide img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
-    /* Empty state */
-    #empty {
-      position: absolute; inset: 0; display: flex;
-      align-items: center; justify-content: center;
-      flex-direction: column; gap: 12px; color: #333;
-    }
-    #empty .icon { font-size: 4rem; }
-    #empty p { font-size: 1rem; font-family: sans-serif; }
+    /* Empty state — hidden, no animation */
+    #empty { display: none !important; }
 
     /* ── Prayer times bar ────────────────────────────────────────────────── */
     #prayer-bar {
@@ -101,10 +95,7 @@
   <div id="offline-badge">⚡ offline — vis gemte slides</div>
 
   <div id="slideshow">
-    <div id="empty">
-      <div class="icon">🖼️</div>
-      <p>Afventer slides…</p>
-    </div>
+    <div id="empty" style="display:none"></div>
   </div>
 
   <!-- Prayer times bar -->
