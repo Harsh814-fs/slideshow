@@ -123,6 +123,21 @@
     .no-sel { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 20px; font-size: 0.82rem; color: var(--muted); }
 
     .dest-scroll { flex: 1; overflow-y: auto; padding: 20px; }
+    .screen-search {
+      width: 100%; background: var(--bg); border: 1px solid var(--border2);
+      border-radius: 6px; padding: 7px 10px 7px 30px; font-size: 0.8rem;
+      color: var(--text); outline: none; font-family: inherit;
+      margin-bottom: 8px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23b0b0a8' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: 9px center;
+    }
+    .screen-search:focus { border-color: var(--accent); }
+    .screen-search::placeholder { color: var(--hint); }
+    .dest-list-cap {
+      max-height: 280px; overflow-y: auto;
+      border-radius: 8px;
+    }
+    .dest-list-cap::-webkit-scrollbar { width: 4px; }
+    .dest-list-cap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
     .dest-label { font-size: 0.67rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; margin-top: 20px; }
     .dest-label:first-child { margin-top: 0; }
 
@@ -155,6 +170,21 @@
     .push-st.success { background: var(--success-bg); color: var(--success); display: block; }
     .push-st.loading { background: var(--accent-bg); color: var(--accent); display: block; }
     .sel-sum { font-size: 0.74rem; color: var(--muted); margin-left: auto; }
+    .date-row { display:flex; align-items:center; gap:8px; font-size:0.78rem; color:var(--muted); }
+    .date-row label { font-size:0.72rem; white-space:nowrap; }
+    .date-row input[type=date] {
+      background: var(--bg); border: 1px solid var(--border2); color: var(--text);
+      border-radius: 6px; padding: 4px 7px; font-size: 0.78rem; outline: none;
+      font-family: inherit; cursor: pointer;
+    }
+    .date-row input[type=date]:focus { border-color: var(--accent); }
+    .date-badge {
+      font-size: 0.62rem; padding: 1px 6px; border-radius: 3px;
+      font-weight: 500; white-space: nowrap;
+    }
+    .date-badge.active  { background: #eef5f1; color: var(--success); border: 1px solid #c2dfd0; }
+    .date-badge.pending { background: #fdf8ee; color: #b8860b; border: 1px solid #e8d88a; }
+    .date-badge.expired { background: #fdf0ee; color: var(--danger); border: 1px solid #f5c6c2; }
 
     /* Screens sidebar */
     .sm-sidebar { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
@@ -275,14 +305,21 @@
         <div class="prev-name" id="previewName"></div>
         <div class="prev-hint">Select destinations, then push</div>
       </div>
-      <div class="dur-row">Duration <input type="number" id="pushDuration" value="5" min="0.5" step="0.5"/> sec</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-left:auto">
+        <div class="dur-row">Duration <input type="number" id="pushDuration" value="5" min="0.5" step="0.5"/> sec</div>
+        <div class="date-row"><label>From</label><input type="date" id="pushStartDate" title="Show from date (optional)"/></div>
+        <div class="date-row"><label>Until</label><input type="date" id="pushEndDate" title="Hide after date (optional)"/></div>
+      </div>
     </div>
 
     <div class="dest-scroll">
       <div class="dest-label">Groups</div>
       <div id="destGroups"><div class="no-items" id="noDestGroups" style="display:none">No groups defined.</div></div>
       <div class="dest-label">Individual Screens</div>
-      <div id="destScreens"><div class="no-items" id="noDestScreens" style="display:none">No screens available.</div></div>
+      <input type="text" class="screen-search" id="screenSearch" placeholder="Search screens…" oninput="filterScreens(this.value)"/>
+      <div class="dest-list-cap">
+        <div id="destScreens"><div class="no-items" id="noDestScreens" style="display:none">No screens available.</div></div>
+      </div>
     </div>
 
     <div class="push-bar">
@@ -830,6 +867,14 @@
     document.getElementById('selSummary').textContent = total ? `${total} destination${total>1?'s':''} selected` : '';
   }
 
+  function filterScreens(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('#destScreens .dest-item').forEach(el => {
+      const name = el.querySelector('.dl-name')?.textContent.toLowerCase() || '';
+      el.style.display = name.includes(q) ? '' : 'none';
+    });
+  }
+
   async function pushMedia() {
     const item = library.find(i => i.id === selectedMediaId);
     if (!item) return;
@@ -942,11 +987,21 @@
           <div class="slide-fname" title="${s.original_name}">${s.original_name}</div>
           <div class="slide-fmeta">${s.width}&times;${s.height}</div>
         </div>
-        <div class="dur-edit">
-          <label>dur</label>
-          <input type="number" min="0.1" step="0.5" value="${s.duration}" id="smdur_${s.id}"/>
-          <span>s</span>
-          <button class="dur-save" onclick="saveSMDuration('${s.id}')">Save</button>
+        <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+          <div class="dur-edit">
+            <label>dur</label>
+            <input type="number" min="0.1" step="0.5" value="${s.duration}" id="smdur_${s.id}"/>
+            <span>s</span>
+            <button class="dur-save" onclick="saveSMDuration('${s.id}')">Save</button>
+          </div>
+          <div class="date-row" style="font-size:0.68rem">
+            <label>From</label>
+            <input type="date" id="smstart_${s.id}" value="${s.start_date||''}" style="font-size:0.7rem;padding:2px 5px"/>
+            <label>Until</label>
+            <input type="date" id="smend_${s.id}" value="${s.end_date||''}" style="font-size:0.7rem;padding:2px 5px"/>
+            <button class="dur-save" onclick="saveSMDates('${s.id}')">Save</button>
+          </div>
+          ${dateBadge(s)}
         </div>
         <button class="rm-btn" onclick="removeSMSlide('${s.id}')">Remove</button>`;
       card.addEventListener('dragstart', () => { dragSrcId=s.id; card.style.opacity='0.45'; });
@@ -961,6 +1016,25 @@
         await fetch(`/api/screens/${currentSlug}/reorder`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({order:currentSlides.map(x=>x.id)})});
       });
       list.appendChild(card);
+    });
+  }
+
+  function dateBadge(s) {
+    if (!s.start_date && !s.end_date) return '';
+    const today = new Date().toISOString().slice(0,10);
+    if (s.end_date && s.end_date < today) return '<span class="date-badge expired">Expired</span>';
+    if (s.start_date && s.start_date > today) return `<span class="date-badge pending">From ${s.start_date}</span>`;
+    if (s.end_date) return `<span class="date-badge active">Until ${s.end_date}</span>`;
+    return `<span class="date-badge active">From ${s.start_date}</span>`;
+  }
+
+  async function saveSMDates(id) {
+    if (!currentSlug) return;
+    const start = document.getElementById(`smstart_${id}`)?.value || null;
+    const end   = document.getElementById(`smend_${id}`)?.value || null;
+    await fetch(`/api/screens/${currentSlug}/slides/${id}/dates`, {
+      method: 'PATCH', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ start_date: start || null, end_date: end || null })
     });
   }
 
