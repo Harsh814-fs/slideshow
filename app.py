@@ -142,6 +142,8 @@ def init_db():
                     original_name TEXT NOT NULL,
                     width         INT  DEFAULT 0,
                     height        INT  DEFAULT 0,
+                    start_date    DATE DEFAULT NULL,
+                    end_date      DATE DEFAULT NULL,
                     created_at    TIMESTAMPTZ DEFAULT now()
                 );
 
@@ -154,6 +156,8 @@ def init_db():
                     position      INT  DEFAULT 0,
                     width         INT  DEFAULT 0,
                     height        INT  DEFAULT 0,
+                    start_date    DATE DEFAULT NULL,
+                    end_date      DATE DEFAULT NULL,
                     created_at    TIMESTAMPTZ DEFAULT now()
                 );
 
@@ -194,6 +198,8 @@ def init_db():
 
             # Add city_id column if upgrading from older DB
             cur.execute("ALTER TABLE screens ADD COLUMN IF NOT EXISTS city_id INT DEFAULT NULL;")
+            cur.execute("ALTER TABLE slides ADD COLUMN IF NOT EXISTS start_date DATE DEFAULT NULL;")
+            cur.execute("ALTER TABLE slides ADD COLUMN IF NOT EXISTS end_date DATE DEFAULT NULL;")
             # Recreate prayer_cache with city_id if it's missing that column
             cur.execute("""
                 DO $$ BEGIN
@@ -252,16 +258,31 @@ def q_screens():
 def serialize_slide(row):
     """Convert a DB row to a JSON-safe dict (strip datetime fields)."""
     d = dict(row)
-    return {k: v for k, v in d.items() if k != 'created_at'}
+    result = {k: v for k, v in d.items() if k != 'created_at'}
+    # Convert date objects to ISO strings
+    for f in ('start_date', 'end_date'):
+        if result.get(f) is not None:
+            result[f] = str(result[f])
+    return result
 
-def q_slides(slug):
+def q_slides(slug, active_only=False):
     conn = get_conn()
+    today = date.today()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                "SELECT * FROM slides WHERE screen_slug=%s ORDER BY position, created_at",
-                (slug,)
-            )
+            if active_only:
+                cur.execute(
+                    """SELECT * FROM slides WHERE screen_slug=%s
+                       AND (start_date IS NULL OR start_date <= %s)
+                       AND (end_date IS NULL OR end_date >= %s)
+                       ORDER BY position, created_at""",
+                    (slug, today, today)
+                )
+            else:
+                cur.execute(
+                    "SELECT * FROM slides WHERE screen_slug=%s ORDER BY position, created_at",
+                    (slug,)
+                )
             return [serialize_slide(r) for r in cur.fetchall()]
     finally:
         rel_conn(conn)
@@ -298,7 +319,7 @@ def sse_stream(slug: str):
     q: queue.Queue = queue.Queue(maxsize=20)
     with listeners_lock:
         listeners.setdefault(slug, []).append(q)
-    slides = q_slides(slug)
+    slides = q_slides(slug, active_only=True)
     yield f"event: init\ndata: {json.dumps(slides)}\n\n"
     try:
         while True:
@@ -477,7 +498,7 @@ def save_upload(file):
         return None, None
     return uid, size
 
-def make_slide(filename, original_name, size, duration, screen_slug, position=0):
+def make_slide(filename, original_name, size, duration, screen_slug, position=0, start_date=None, end_date=None):
     return {
         "id":            uuid.uuid4().hex,
         "screen_slug":   screen_slug,
@@ -487,6 +508,8 @@ def make_slide(filename, original_name, size, duration, screen_slug, position=0)
         "position":      position,
         "width":         size[0],
         "height":        size[1],
+        "start_date":    start_date or None,
+        "end_date":      end_date or None,
     }
 
 def insert_slide(slide):
@@ -494,8 +517,8 @@ def insert_slide(slide):
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO slides (id, screen_slug, filename, original_name, duration, position, width, height)
-                VALUES (%(id)s, %(screen_slug)s, %(filename)s, %(original_name)s, %(duration)s, %(position)s, %(width)s, %(height)s)
+                INSERT INTO slides (id, screen_slug, filename, original_name, duration, position, width, height, start_date, end_date)
+                VALUES (%(id)s, %(screen_slug)s, %(filename)s, %(original_name)s, %(duration)s, %(position)s, %(width)s, %(height)s, %(start_date)s, %(end_date)s)
             """, slide)
             conn.commit()
     finally:
@@ -685,6 +708,8 @@ def push_media():
     filename      = data.get("filename")
     original_name = data.get("original_name", filename)
     duration      = float(data.get("duration", 5))
+    start_date    = data.get("start_date") or None
+    end_date      = data.get("end_date") or None
     target_screens = data.get("screens", [])
     target_groups  = data.get("groups", [])
 
@@ -703,7 +728,7 @@ def push_media():
         if slug in pushed or not screen_exists(slug):
             return
         pos   = next_position(slug)
-        slide = make_slide(filename, original_name, size, duration, slug, pos)
+        slide = make_slide(filename, original_name, size, duration, slug, pos, start_date, end_date)
         insert_slide(slide)
         push_event(slug, "slide_added", slide)
         pushed.append(slug)
@@ -838,6 +863,28 @@ def reorder_slides(slug):
     slides = q_slides(slug)
     push_event(slug, "reordered", {"slides": slides})
     return jsonify({"message": "Reordered."}), 200
+
+@app.route("/api/screens/<slug>/slides/<slide_id>/dates", methods=["PATCH"])
+@login_required
+def update_dates(slug, slide_id):
+    data = request.get_json()
+    start = data.get("start_date") or None
+    end   = data.get("end_date") or None
+    conn  = get_conn()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "UPDATE slides SET start_date=%s, end_date=%s WHERE id=%s AND screen_slug=%s RETURNING *",
+                (start, end, slide_id, slug)
+            )
+            row = cur.fetchone()
+            conn.commit()
+    finally:
+        rel_conn(conn)
+    if not row:
+        return jsonify({"error": "Slide not found."}), 404
+    push_event(slug, "slide_updated", serialize_slide(row))
+    return jsonify(serialize_slide(row)), 200
 
 # ── SSE endpoint ──────────────────────────────────────────────────────────────
 @app.route("/api/screens/<slug>/events")
