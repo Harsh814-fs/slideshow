@@ -102,6 +102,8 @@
     .lib-card img { width: 100%; height: 68px; object-fit: cover; display: block; }
     .lib-card .lc-name { font-size: 0.65rem; color: var(--muted); padding: 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .lib-card .lc-del  { position: absolute; top: 4px; right: 4px; background: rgba(255,255,255,0.92); color: var(--danger); border: none; border-radius: 4px; padding: 2px 6px; font-size: 0.68rem; cursor: pointer; display: none; font-weight: 500; }
+    .lib-card .lc-rmscr { position: absolute; bottom: 22px; right: 4px; background: rgba(255,255,255,0.92); color: var(--accent); border: none; border-radius: 4px; padding: 2px 6px; font-size: 0.62rem; cursor: pointer; display: none; font-weight: 500; white-space: nowrap; }
+    .lib-card:hover .lc-rmscr { display: block; }
     .lib-card:hover .lc-del { display: block; }
     .lib-card .lc-chk  { position: absolute; top: 4px; left: 4px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); display: none; align-items: center; justify-content: center; font-size: 0.6rem; color: #fff; font-weight: 700; }
     .lib-card.selected .lc-chk { display: flex; }
@@ -258,6 +260,40 @@
     .user-item.active { background:var(--accent-bg);border-color:rgba(45,90,61,0.25); }
     .user-dot { width:6px;height:6px;border-radius:50%;background:var(--border2);flex-shrink:0; }
     .user-item.active .user-dot { background:var(--accent); }
+    /* Image preview modal */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,0.82);
+      display: none; align-items: center; justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      position: relative; max-width: 90vw; max-height: 90vh;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+    .modal-box img {
+      max-width: 90vw; max-height: 80vh;
+      object-fit: contain; border-radius: 8px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .modal-name {
+      color: rgba(255,255,255,0.7); font-size: 0.82rem; font-family: inherit;
+    }
+    .modal-close {
+      position: absolute; top: -36px; right: 0;
+      background: none; border: none; color: rgba(255,255,255,0.7);
+      font-size: 1.4rem; cursor: pointer; line-height: 1; padding: 4px 8px;
+      transition: color 0.15s;
+    }
+    .modal-close:hover { color: #fff; }
+    .lib-card .lc-zoom {
+      position: absolute; top: 4px; left: 4px;
+      background: rgba(0,0,0,0.55); color: #fff;
+      border: none; border-radius: 4px; padding: 2px 6px;
+      font-size: 0.68rem; cursor: pointer; display: none;
+    }
+    .lib-card:hover .lc-zoom { display: block; }
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
@@ -285,8 +321,8 @@
     <div class="panel-head">
       <div class="panel-label">Media Library</div>
       <div class="drop-zone" id="dropZone" onclick="document.getElementById('libFileInput').click()">
-        <div class="dz-title">Click or drag image here</div>
-        <div class="dz-sub">JPG, PNG, GIF, WEBP</div>
+        <div class="dz-title">Click or drag images here</div>
+        <div class="dz-sub">Select multiple files with Ctrl+click &mdash; JPG, PNG, GIF, WEBP</div>
       </div>
       <input type="file" id="libFileInput" accept=".jpg,.jpeg,.png,.gif,.webp" multiple/>
       <div class="sbar" id="uploadStatus"></div>
@@ -458,10 +494,19 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="imgModal" onclick="closeModal(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="document.getElementById('imgModal').classList.remove('open')">&times;</button>
+    <img id="modalImg" src="" alt=""/>
+    <div class="modal-name" id="modalName"></div>
+  </div>
+</div>
+
 <script>
-  let allScreens = {{ screens | tojson }};
-  let library    = {{ library | tojson }};
-  let allGroups  = {{ groups  | tojson }};
+  let allScreens  = {{ screens      | tojson }};
+  let library     = {{ library      | tojson }};
+  let allGroups   = {{ groups       | tojson }};
+  const slideCounts = {{ slide_counts | tojson }};
 
   let selectedMediaId = null;
   let checkedSlugs    = new Set();
@@ -743,6 +788,9 @@
     }
   }
 
+  // Set today as default start date
+  document.getElementById('pushStartDate').value = new Date().toISOString().slice(0,10);
+
   // Init
   library.forEach(item => addToLibGrid(item));
   updateLibEmpty();
@@ -759,18 +807,26 @@
   document.getElementById('libFileInput').addEventListener('change', function() { uploadToLibrary(this.files); this.value=''; });
 
   async function uploadToLibrary(files) {
-    const st = document.getElementById('uploadStatus');
-    for (const file of files) {
-      setSt(st, 'loading', `Uploading ${file.name}…`);
-      const fd = new FormData(); fd.append('file', file);
-      try {
-        const res = await fetch('/api/library/upload', { method:'POST', body: fd });
-        const d   = await res.json();
-        if (!res.ok) { setSt(st, 'error', d.error); continue; }
-        library.push(d); addToLibGrid(d); updateLibEmpty();
-        setSt(st, 'success', `${file.name} uploaded`);
-      } catch { setSt(st, 'error', 'Network error.'); }
-    }
+    if (!files || !files.length) return;
+    const st  = document.getElementById('uploadStatus');
+    const total = files.length;
+    setSt(st, 'loading', total === 1 ? `Uploading ${files[0].name}…` : `Uploading ${total} images…`);
+    const fd = new FormData();
+    for (const file of files) fd.append('files', file);
+    try {
+      const res  = await fetch('/api/library/upload', { method:'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) { setSt(st, 'error', data.error || 'Upload failed.'); return; }
+      const items = data.uploaded || [];
+      items.forEach(item => { library.push(item); addToLibGrid(item); });
+      updateLibEmpty();
+      const errs = data.errors || [];
+      if (errs.length) {
+        setSt(st, 'error', `${items.length} uploaded, ${errs.length} failed: ${errs.join(', ')}`);
+      } else {
+        setSt(st, 'success', items.length === 1 ? `${items[0].original_name} uploaded` : `${items.length} images uploaded`);
+      }
+    } catch { setSt(st, 'error', 'Network error.'); }
   }
 
   function addToLibGrid(item) {
@@ -780,8 +836,10 @@
     card.innerHTML = `
       <div class="lc-chk">&#10003;</div>
       <img src="/static/uploads/${item.filename}" loading="lazy"/>
+      <button class="lc-zoom" onclick="openModal('/static/uploads/${item.filename}','${item.original_name}',event)" title="Preview">&#128269;</button>
       <div class="lc-name" title="${item.original_name}">${item.original_name}</div>
-      <button class="lc-del" onclick="deleteLibItem('${item.id}',event)">Remove</button>`;
+      <button class="lc-del" onclick="deleteLibItem('${item.id}',event)" title="Remove from library">Remove</button>
+      <button class="lc-rmscr" onclick="removeFromAllScreens('${item.id}',event)" title="Remove from all screens">&#10005; All screens</button>`;
     card.addEventListener('click', () => selectMedia(item));
     grid.appendChild(card);
   }
@@ -795,6 +853,20 @@
     document.getElementById('previewImg').src           = `/static/uploads/${item.filename}`;
     document.getElementById('previewName').textContent  = item.original_name;
     updatePushBtn();
+  }
+
+  async function removeFromAllScreens(id, e) {
+    e.stopPropagation();
+    const item = library.find(i => i.id === id);
+    if (!confirm(`Remove "${item?.original_name}" from ALL screens?\nThis cannot be undone.`)) return;
+    const st = document.getElementById('uploadStatus');
+    setSt(st, 'loading', 'Removing from all screens…');
+    try {
+      const res  = await fetch(`/api/library/${id}/remove-from-screens`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) { setSt(st, 'error', data.error); return; }
+      setSt(st, 'success', data.message);
+    } catch { setSt(st, 'error', 'Network error.'); }
   }
 
   async function deleteLibItem(id, e) {
@@ -867,6 +939,20 @@
     document.getElementById('selSummary').textContent = total ? `${total} destination${total>1?'s':''} selected` : '';
   }
 
+  function openModal(src, name, e) {
+    if (e) e.stopPropagation();
+    document.getElementById('modalImg').src  = src;
+    document.getElementById('modalName').textContent = name;
+    document.getElementById('imgModal').classList.add('open');
+  }
+  function closeModal(e) {
+    if (e.target === document.getElementById('imgModal'))
+      document.getElementById('imgModal').classList.remove('open');
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.getElementById('imgModal').classList.remove('open');
+  });
+
   function filterScreens(query) {
     const q = query.toLowerCase();
     document.querySelectorAll('#destScreens .dest-item').forEach(el => {
@@ -921,7 +1007,7 @@
     div.innerHTML = `
       <div class="scr-dot"></div>
       <div class="scr-name" title="${screen.slug}">${screen.name}</div>
-      <div class="scr-count" id="smcnt-${screen.slug}">0</div>
+      <div class="scr-count" id="smcnt-${screen.slug}">${slideCounts[screen.slug] || 0}</div>
       ${isPre ? '<span class="seed-tag">seeded</span>' : `<button class="del-btn" onclick="deleteScreen('${screen.slug}',event)" title="Delete">&#215;</button>`}`;
     div.addEventListener('click', () => selectSMScreen(screen));
     list.appendChild(div);
