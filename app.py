@@ -36,37 +36,37 @@ DIYANET_CITY_ID  = os.getenv("DIYANET_CITY_ID", "")   # find via /api/prayer/cou
 # ── Predefined screens — seeded on startup ────────────────────────────────────
 PREDEFINED_SCREENS = [
     {"name": "Aabenraa Camii",                  "slug": "aabenraa-camii",               "city_id": 12646},
-    {"name": "Aarhus Selimiye Camii",           "slug": "aarhus-selimiye-camii"},
-    {"name": "Albertslund Alaaddin Camii",      "slug": "albertslund-alaaddin-camii"},
-    {"name": "Avedøre Haci Bayram Camii",       "slug": "avedore-haci-bayram-camii"},
-    {"name": "Ballerup Fatih Camii",            "slug": "ballerup-fatih-camii"},
-    {"name": "Brabrand Kvinde afd.",            "slug": "brabrand-kvinde-afd"},
-    {"name": "Brabrand Ulu Camii",              "slug": "brabrand-ulu-camii"},
-    {"name": "Diyanet 1",                       "slug": "diyanet-1"},
-    {"name": "Diyanet 2",                       "slug": "diyanet-2"},
-    {"name": "Esbjerg Cami",                    "slug": "esbjerg-cami"},
-    {"name": "Farum Camii",                     "slug": "farum-camii"},
-    {"name": "Fredericia Camii",                "slug": "fredericia-camii"},
-    {"name": "Frederikssund Camii",             "slug": "frederikssund-camii"},
+    {"name": "Aarhus Selimiye Camii",           "slug": "aarhus-selimiye-camii",        "city_id": 12620},
+    {"name": "Albertslund Alaaddin Camii",      "slug": "albertslund-alaaddin-camii",   "city_id": 17795},
+    {"name": "Avedøre Haci Bayram Camii",       "slug": "avedore-haci-bayram-camii",    "city_id": 17798},
+    {"name": "Ballerup Fatih Camii",            "slug": "ballerup-fatih-camii",         "city_id": 17801},
+    {"name": "Brabrand Kvinde afd.",            "slug": "brabrand-kvinde-afd",          "city_id": 12620},
+    {"name": "Brabrand Ulu Camii",              "slug": "brabrand-ulu-camii",           "city_id": 12620},
+    {"name": "Diyanet 1",                       "slug": "diyanet-1",                    "city_id": None},
+    {"name": "Diyanet 2",                       "slug": "diyanet-2",                    "city_id": None},
+    {"name": "Esbjerg Cami",                    "slug": "esbjerg-cami",                 "city_id": 12638},
+    {"name": "Farum Camii",                     "slug": "farum-camii",                  "city_id": 17799},
+    {"name": "Fredericia Camii",                "slug": "fredericia-camii",             "city_id": 12623},
+    {"name": "Frederikssund Camii",             "slug": "frederikssund-camii",          "city_id": 12627},
     {"name": "Hedehusene Fetih Camii",          "slug": "hedehusene-fetih-camii",       "city_id": 17796},
-    {"name": "Herning Eyüp Camii",              "slug": "herning-eyup-camii"},
-    {"name": "Holbæk Süleymaniye Camii",        "slug": "holbaek-suleymaniye-camii"},
-    {"name": "Horsens Yunus Emre Camii",        "slug": "horsens-yunus-emre-camii"},
-    {"name": "Ikast Fatih Camii",               "slug": "ikast-fatih-camii"},
-    {"name": "Ishøj Mevlana Camii",             "slug": "ishoj-mevlana-camii"},
-    {"name": "Kocatepe Camii",                  "slug": "kocatepe-camii"},
-    {"name": "Køge Camii",                      "slug": "koge-camii"},
+    {"name": "Herning Eyüp Camii",              "slug": "herning-eyup-camii",           "city_id": 12631},
+    {"name": "Holbæk Süleymaniye Camii",        "slug": "holbaek-suleymaniye-camii",    "city_id": 12622},
+    {"name": "Horsens Yunus Emre Camii",        "slug": "horsens-yunus-emre-camii",     "city_id": 12633},
+    {"name": "Ikast Fatih Camii",               "slug": "ikast-fatih-camii",            "city_id": 12625},
+    {"name": "Ishøj Mevlana Camii",             "slug": "ishoj-mevlana-camii",          "city_id": 17797},
+    {"name": "Kocatepe Camii",                  "slug": "kocatepe-camii",               "city_id": None},
+    {"name": "Køge Camii",                      "slug": "koge-camii",                   "city_id": 12629},
     {"name": "Næstved Mimar Sinan Camii",       "slug": "naestved-mimar-sinan-camii",   "city_id": 12641},
-    {"name": "Nyborg Camii",                    "slug": "nyborg-camii"},
-    {"name": "Odense Selimiye Camii",           "slug": "odense-selimiye-camii"},
+    {"name": "Nyborg Camii",                    "slug": "nyborg-camii",                 "city_id": 12614},
+    {"name": "Odense Selimiye Camii",           "slug": "odense-selimiye-camii",        "city_id": 12619},
     {"name": "Randers Camii",                   "slug": "randers-camii",                "city_id": 12643},
-    {"name": "Ringsted Yeni Camii",             "slug": "ringsted-yeni-camii"},
-    {"name": "Roskilde Ayasofya Camii",         "slug": "roskilde-ayasofya-camii"},
-    {"name": "Silkeborg Camii",                 "slug": "silkeborg-camii"},
-    {"name": "Slagelse Vakiflar Camii",         "slug": "slagelse-vakiflar-camii"},
+    {"name": "Ringsted Yeni Camii",             "slug": "ringsted-yeni-camii",          "city_id": 12628},
+    {"name": "Roskilde Ayasofya Camii",         "slug": "roskilde-ayasofya-camii",      "city_id": 12624},
+    {"name": "Silkeborg Camii",                 "slug": "silkeborg-camii",              "city_id": 12634},
+    {"name": "Slagelse Vakiflar Camii",         "slug": "slagelse-vakiflar-camii",      "city_id": 12621},
     {"name": "Svendborg Bilal Habesi Camii",    "slug": "svendborg-bilal-habesi-camii", "city_id": 12635},
-    {"name": "Taastrup Yunus Emre Camii",       "slug": "taastrup-yunus-emre-camii"},
-    {"name": "Vejle Camii",                     "slug": "vejle-camii"},
+    {"name": "Taastrup Yunus Emre Camii",       "slug": "taastrup-yunus-emre-camii",    "city_id": 17800},
+    {"name": "Vejle Camii",                     "slug": "vejle-camii",                  "city_id": 12645},
 ]
 
 PREDEFINED_GROUPS = {
@@ -627,11 +627,21 @@ def admin():
         user_id = session.get("user_id")
         allowed = set(q_user_screens(user_id)) if user_id else set()
         screens = [s for s in all_screens if s["slug"] in allowed]
+    # Get slide counts for all screens in one query
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT screen_slug, COUNT(*) FROM slides GROUP BY screen_slug")
+            slide_counts = {r[0]: r[1] for r in cur.fetchall()}
+    finally:
+        rel_conn(conn)
+
     return render_template("admin.html",
         screens=screens, library=library,
         groups=groups if is_admin else {},
         is_admin=is_admin,
-        current_user=session.get("username", ""))
+        current_user=session.get("username", ""),
+        slide_counts=slide_counts)
 
 # ── Prayer times API ──────────────────────────────────────────────────────────
 @app.route("/api/prayer/today")
@@ -664,29 +674,80 @@ def get_library():
 @app.route("/api/library/upload", methods=["POST"])
 @login_required
 def library_upload():
-    if "file" not in request.files:
-        return jsonify({"error": "No file provided."}), 400
-    file = request.files["file"]
-    if not file.filename:
-        return jsonify({"error": "Empty filename."}), 400
-    e = get_ext(file.filename)
-    if e not in ALLOWED_EXT:
-        return jsonify({"error": f"Unsupported type '{e}'. Use JPG, PNG, GIF, or WEBP."}), 400
-    uid, size = save_upload(file)
-    if not uid:
-        return jsonify({"error": "Could not read image."}), 400
-    item = {"id": uuid.uuid4().hex, "filename": uid, "original_name": file.filename, "width": size[0], "height": size[1]}
+    files = request.files.getlist("files")
+    if not files:
+        # fallback for single file
+        f = request.files.get("file")
+        if f:
+            files = [f]
+    if not files:
+        return jsonify({"error": "No files provided."}), 400
+
+    uploaded = []
+    errors   = []
     conn = get_conn()
     try:
         with conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO library (id, filename, original_name, width, height) VALUES (%(id)s, %(filename)s, %(original_name)s, %(width)s, %(height)s)",
-                item
-            )
+            for file in files:
+                if not file.filename:
+                    continue
+                e = get_ext(file.filename)
+                if e not in ALLOWED_EXT:
+                    errors.append(f"{file.filename}: unsupported type")
+                    continue
+                uid, size = save_upload(file)
+                if not uid:
+                    errors.append(f"{file.filename}: could not read image")
+                    continue
+                item = {
+                    "id": uuid.uuid4().hex,
+                    "filename": uid,
+                    "original_name": file.filename,
+                    "width": size[0],
+                    "height": size[1]
+                }
+                cur.execute(
+                    "INSERT INTO library (id, filename, original_name, width, height) VALUES (%(id)s, %(filename)s, %(original_name)s, %(width)s, %(height)s)",
+                    item
+                )
+                uploaded.append(item)
             conn.commit()
     finally:
         rel_conn(conn)
-    return jsonify(item), 201
+
+    if not uploaded and errors:
+        return jsonify({"error": "; ".join(errors)}), 400
+    return jsonify({"uploaded": uploaded, "errors": errors}), 201
+
+@app.route("/api/library/<item_id>/remove-from-screens", methods=["DELETE"])
+@login_required
+def remove_from_all_screens(item_id):
+    """Remove all slides using this library item from all screens."""
+    conn = get_conn()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Get the filename for this library item
+            cur.execute("SELECT filename FROM library WHERE id=%s", (item_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "Library item not found."}), 404
+            filename = row["filename"]
+            # Find all slides using this file
+            cur.execute("SELECT id, screen_slug FROM slides WHERE filename=%s", (filename,))
+            slides = cur.fetchall()
+            # Delete all those slides
+            cur.execute("DELETE FROM slides WHERE filename=%s", (filename,))
+            conn.commit()
+            # Notify all affected screens via SSE
+            notified = set()
+            for slide in slides:
+                slug = slide["screen_slug"]
+                if slug not in notified:
+                    push_event(slug, "slide_removed", {"id": slide["id"]})
+                    notified.add(slug)
+            return jsonify({"message": f"Removed from {len(slides)} slide(s) across {len(notified)} screen(s).", "count": len(slides)}), 200
+    finally:
+        rel_conn(conn)
 
 @app.route("/api/library/<item_id>", methods=["DELETE"])
 @login_required
@@ -753,6 +814,19 @@ def push_media():
             rel_conn(conn)
 
     return jsonify({"message": f"Pushed to {len(pushed)} screen(s).", "screens": pushed}), 200
+
+# ── Slide counts for all screens ─────────────────────────────────────────────
+@app.route("/api/slide-counts")
+@login_required
+def slide_counts():
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT screen_slug, COUNT(*) as count FROM slides GROUP BY screen_slug")
+            rows = cur.fetchall()
+            return jsonify({r[0]: r[1] for r in rows})
+    finally:
+        rel_conn(conn)
 
 # ── Screen routes ─────────────────────────────────────────────────────────────
 @app.route("/api/screens", methods=["GET"])
